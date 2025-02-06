@@ -40,11 +40,11 @@ class Market(MetadataBase):
 class Stock(MetadataBase):
     __tablename__ = 'stock'
 
-    code:       Mapped[str] = mapped_column(String(10), primary_key=True)
-    name:       Mapped[str] = mapped_column(String(50))
+    code:           Mapped[str] = mapped_column(String(10), primary_key=True)
+    name:           Mapped[str] = mapped_column(String(50))
 
     #
-    market_id:  Mapped[int] = mapped_column(ForeignKey('market.id'))
+    market_id:      Mapped[int] = mapped_column(ForeignKey('market.id'))
 
 
 class StockDaily(MetadataBase):
@@ -54,14 +54,14 @@ class StockDaily(MetadataBase):
     )
 
     # basic
-    code:       Mapped[str] = mapped_column(ForeignKey('stock.code'))
-    trade_day:  Mapped[Date] = mapped_column(Date)
+    code:                       Mapped[str]         = mapped_column(ForeignKey('stock.code'))
+    trade_day:                  Mapped[Date]        = mapped_column(Date)
     
     # price
-    open:   Mapped[Numeric] = mapped_column(Numeric(10, 3))
-    high:   Mapped[Numeric] = mapped_column(Numeric(10, 3))
-    low:    Mapped[Numeric] = mapped_column(Numeric(10, 3))
-    close:  Mapped[Numeric] = mapped_column(Numeric(10, 3))
+    open:                       Mapped[Numeric]     = mapped_column(Numeric(10, 3), nullable=True)
+    high:                       Mapped[Numeric]     = mapped_column(Numeric(10, 3), nullable=True)
+    low:                        Mapped[Numeric]     = mapped_column(Numeric(10, 3), nullable=True)
+    close:                      Mapped[Numeric]     = mapped_column(Numeric(10, 3), nullable=True)
     
     # trade
     # 交易量
@@ -79,7 +79,7 @@ class StockDaily(MetadataBase):
     
     # derived
     # moving average
-    ma_250: Mapped[Float] = mapped_column(Float, nullable=True)
+    ma_250:                     Mapped[Float]       = mapped_column(Float, nullable=True)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ from datetime import date
 from decimal import Decimal
 
 from loguru import logger
+from pandas import notna
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.engine import Engine
@@ -13,7 +14,7 @@ from app.constant.exchange import *
 from app.db.models import Market, Stock, StockDaily
 
 
-def load_all_stocks(engine: Engine, market_name: str):
+def load_all_stocks(engine: Engine, market_name: str) -> None:
     if market_name not in market_map.keys():
         raise ValueError(f"exchange {market_name} not supported")
 
@@ -43,7 +44,7 @@ def load_all_stocks(engine: Engine, market_name: str):
 
 
 
-def load_all_stock_daily_hist(engine: Engine, market_name: str):
+def load_all_stock_daily_hist(engine: Engine, market_name: str) -> None:
     if market_name not in market_map.keys():
         raise ValueError(f"exchange {market_name} not supported")
 
@@ -100,50 +101,91 @@ def load_all_stock_daily_hist(engine: Engine, market_name: str):
 
 
 # TODO testing required
-def refresh_stock_daily(engine: Engine):
+def refresh_stock_daily(engine: Engine) -> None:
+    today = date.today()
+    
     with Session(engine) as session:
-
-        today = date.today()
         df = pull_stock_daily()
+        
+        df_column_mapping = {
+            '代码': 'code',
+            '今开': 'open',
+            '最高': 'high',
+            '最低': 'low',
+            '最新价': 'close',
+            '成交量': 'volume',
+            '成交额': 'turnover',
+            '总市值': 'capital',
+            '流通市值': 'circulation_capital',
+            '量比': 'quantity_relative_ratio',
+            '换手率': 'turnover_rate',
+        }
+        transformations = {
+            'open': lambda x: Decimal(format(x, '.3f')) if notna(x) else x,
+            'high': lambda x: Decimal(format(x, '.3f')) if notna(x) else x,
+            'low': lambda x: Decimal(format(x, '.3f')) if notna(x) else x,
+            'close': lambda x: Decimal(format(x, '.3f')) if notna(x) else x,
+            'volume': lambda x: int(x) if notna(x) else x,
+            'turnover': lambda x: int(x) if notna(x) else x,
+            'capital': lambda x: int(x) if notna(x) else x,
+            'circulation_capital': lambda x: int(x) if notna(x) else x,
+            'quantity_relative_ratio': lambda x: float(x) if notna(x) else x,
+            'turnover_rate': lambda x: float(x) if notna(x) else x,
+        }
+        mask = df.isna().sum(axis=1) < len(df_column_mapping) - 1
 
-        if engine.dialect.name == 'postgresql':
-            data = df.to_dict(orient='records')
+        df = df.rename(columns=df_column_mapping)[list(df_column_mapping.values())]
+        df = df[mask]
+        df = df.where(pd.notna(df), None)
+        for col, func in transformations.items():
+            df[col] = df[col].apply(func)
 
-            stmt = pg_insert(StockDaily).values(data)
-
-            update_dict = {
-                'open': stmt.excluded.open,
-                'high': stmt.excluded.high,
-                'low': stmt.excluded.low,
-                'close': stmt.excluded.close,
-                'volume': stmt.excluded.volume,
-                'turnover': stmt.excluded.turnover,
-                'capital': stmt.excluded.capital,
-                'circulation_capital': stmt.excluded.circulation_capital,
-                'quantity_relative_ratio': stmt.excluded.quantity_relative_ratio,
-                'turnover_rate': stmt.excluded.turnover_rate,
-            }
-
-            stmt = stmt.on_conflict_do_update(
-                index_elements=['code', 'trade_day'],
-                set_=update_dict
-            )
-        else:
-            # Assuming you have a pandas DataFrame 'df' with columns: ticker, price, timestamp
-            for _, row in df.iterrows():
-                # Convert the row to a dictionary; make sure the keys match your model
-                one_stock = row.to_dict()
-                price_obj = StockDaily(
-                    code=one_stock.code,
-                    trade_day=one_stock['日期'],
-                    open=Decimal(format(one_stock['开盘'], '.3f')),
-                    high=Decimal(format(one_stock['最高'], '.3f')),
-                    low=Decimal(format(one_stock['最低'], '.3f')),
-                    close=Decimal(format(one_stock['收盘'], '.3f')),
-                    volume=int(one_stock['成交量']),
-                    turnover=int(one_stock['成交额'])
+        try:
+            if engine.dialect.name == 'postgresql':
+                # upsert statement
+                data = df.to_dict(orient='records')
+                stmt = pg_insert(StockDaily).values(data)
+                update_dict = {
+                    'open': stmt.excluded.open,
+                    'high': stmt.excluded.high,
+                    'low': stmt.excluded.low,
+                    'close': stmt.excluded.close,
+                    'volume': stmt.excluded.volume,
+                    'turnover': stmt.excluded.turnover,
+                    'capital': stmt.excluded.capital,
+                    'circulation_capital': stmt.excluded.circulation_capital,
+                    'quantity_relative_ratio': stmt.excluded.quantity_relative_ratio,
+                    'turnover_rate': stmt.excluded.turnover_rate,
+                }
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=['code', 'trade_day'],
+                    set_=update_dict
                 )
-                session.merge(one_stock)
+            else:
+                for _, row in df.iterrows():
+                    one_stock = row.to_dict()
+                    stock = StockDaily(
+                        code=one_stock['code'],
+                        trade_day=today,
+                        open=one_stock['open'],
+                        high=one_stock['high'],
+                        low=one_stock['low'],
+                        close=one_stock['close'],
+                        volume=one_stock['volume'],
+                        turnover=one_stock['turnover'],
+                        capital=one_stock['capital'],
+                        circulation_capital=one_stock['circulation_capital'],
+                        quantity_relative_ratio=one_stock['quantity_relative_ratio'],
+                        turnover_rate=one_stock['turnover_rate'],
+                    )
+                    session.merge(stock)
+            
+            session.commit()
+            logger.info(f"Total of {len(df)} daily data committed for {today.isoformat()}")
+        
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Error in committing daily data for {today.isoformat()}: {e}")
 
 
 
@@ -177,5 +219,30 @@ if __name__ == '__main__':
     # or
     # today's data
     # for market_name in unsupported_markets:
-    for market_name in supported_markets:
-        load_all_stock_daily_hist(create_engine(url), market_name)
+    # for market_name in supported_markets:
+        # load_all_stock_daily_hist(create_engine(url), market_name)
+
+    # load daily
+    # refresh_stock_daily(create_engine(url))
+
+    import pandas as pd
+    trade_day = date.today().isoformat()
+    stock = StockDaily(
+        code='688720',
+        trade_day=trade_day,
+        open=None,
+        high=None,
+        low=None,
+        close=None,
+        volume=None,
+        capital=None,
+        circulation_capital=123424,
+        quantity_relative_ratio=12.421,
+    )
+    engine = create_engine(url)
+    with Session(engine) as session:
+        result = session.execute(
+            select(StockDaily).where(StockDaily.code == '688720').where(StockDaily.trade_day == trade_day)
+        ).scalar_one_or_none()
+        result = session.merge(stock)
+        session.commit()
