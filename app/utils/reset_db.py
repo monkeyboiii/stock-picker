@@ -1,10 +1,10 @@
 import os
 import csv
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
-from sqlalchemy.engine import URL, Engine
+from sqlalchemy.engine import Engine
 
+from app.db.engine import engine_from_env
 from app.db.models import Market, MetadataBase
 
 
@@ -27,20 +27,6 @@ def reset_table_content(engine: Engine, reset=False):
 
 
 if __name__ == '__main__':
-    from dotenv import load_dotenv
-    import os
-
-    load_dotenv()
-
-    url = URL.create(
-        drivername  =       os.getenv("DB_DRIVER")          or 'postgresql',
-        username    =       os.getenv("POSTGRES_USERNAME")  or 'postgres',
-        password    =       os.getenv("POSTGRES_PASSWORD")  or 'postgres',
-        host        =       os.getenv("POSTGRES_HOST")      or 'localhost',
-        port        =   int(os.getenv("POSTGRES_PORT")      or '5432'),
-        database    =       os.getenv("POSTGRES_DATABASE")
-    )
-    
     reset_input = input("Do you want to reset the database? (y/[n]): ")
     reset = True if reset_input.lower() == 'y' else False
-    reset_table_content(create_engine(url), reset=reset)
+    reset_table_content(engine_from_env(), reset=reset)

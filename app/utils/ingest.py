@@ -11,6 +11,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.ak.data import *
 from app.constant.exchange import *
+from app.db.engine import engine_from_env
 from app.db.models import Market, Stock, StockDaily
 
 
@@ -136,7 +137,7 @@ def refresh_stock_daily(engine: Engine) -> None:
 
         df = df.rename(columns=df_column_mapping)[list(df_column_mapping.values())]
         df = df[mask]
-        df = df.where(pd.notna(df), None)
+        df = df.where(notna(df), None)
         for col, func in transformations.items():
             df[col] = df[col].apply(func)
 
@@ -190,26 +191,11 @@ def refresh_stock_daily(engine: Engine) -> None:
 
 
 if __name__ == '__main__':
-    from dotenv import load_dotenv
-    from sqlalchemy import create_engine
-    from sqlalchemy.engine import URL
-    import os
-
-
-    load_dotenv()
-
-    url = URL.create(
-        drivername  =       os.getenv("DB_DRIVER")          or 'postgresql',
-        username    =       os.getenv("POSTGRES_USERNAME")  or 'postgres',
-        password    =       os.getenv("POSTGRES_PASSWORD")  or 'postgres',
-        host        =       os.getenv("POSTGRES_HOST")      or 'localhost',
-        port        =   int(os.getenv("POSTGRES_PORT")      or '5432'),
-        database    =       os.getenv("POSTGRES_DATABASE")
-    )
-    
     supported_markets = [SEX_SHANGHAI, SEX_SHENZHEN, SEX_BEIJING]
     unsupported_markets = [SEX_HONGKONG]
     
+    engine = engine_from_env()
+
     # for market_name in unsupported_markets:
     # for market_name in supported_markets:
     #     load_all_stocks(create_engine(url), market_name)
@@ -224,25 +210,3 @@ if __name__ == '__main__':
 
     # load daily
     # refresh_stock_daily(create_engine(url))
-
-    import pandas as pd
-    trade_day = date.today().isoformat()
-    stock = StockDaily(
-        code='688720',
-        trade_day=trade_day,
-        open=None,
-        high=None,
-        low=None,
-        close=None,
-        volume=None,
-        capital=None,
-        circulation_capital=123424,
-        quantity_relative_ratio=12.421,
-    )
-    engine = create_engine(url)
-    with Session(engine) as session:
-        result = session.execute(
-            select(StockDaily).where(StockDaily.code == '688720').where(StockDaily.trade_day == trade_day)
-        ).scalar_one_or_none()
-        result = session.merge(stock)
-        session.commit()

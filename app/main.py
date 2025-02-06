@@ -1,24 +1,36 @@
-from sqlalchemy import create_engine
-from sqlalchemy.engine import URL
-from dotenv import load_dotenv
-from db.models import MetadataBase
-import os
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+from loguru import logger
+import pandas as pd
+
+from db.engine import engine_from_env
+from db.models import StockDaily
 
 
-load_dotenv()
+def main():
+    engine = engine_from_env()
+    trade_day = '2025-02-06'
+    
+    stock = StockDaily(
+        code='688720',
+        trade_day=trade_day,
+        open=None,
+        high=None,
+        low=None,
+        close=None,
+        volume=None,
+        capital=2343214,
+        circulation_capital=None,
+        quantity_relative_ratio=12.421,
+    )
+    with Session(engine) as session:
+        result = session.execute(
+            select(StockDaily).where(StockDaily.code == '688720').where(StockDaily.trade_day == trade_day)
+        ).scalar_one_or_none()
+        result = session.merge(stock)
+        logger.info(f"Merged result: {result.to_dict() if result else 'None'}")
+        session.commit()
 
 
-url = URL.create(
-    drivername=os.getenv("DB_DRIVER") or 'postgresql',
-    username=os.getenv("POSTGRES_USERNAME") or 'postgres',
-    password=os.getenv("POSTGRES_PASSWORD") or 'postgres',
-    host=os.getenv("POSTGRES_HOST") or 'localhost',
-    port=int(os.getenv("POSTGRES_PORT") or '5432'),
-    database=os.getenv("POSTGRES_DATABASE")
-)
-
-engine = create_engine(url)
-
-
-# Assuming your models inherit from Base
-MetadataBase.metadata.create_all(engine)
+if __name__ == "__main__":
+    main()

@@ -11,6 +11,9 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, DeclarativeBase
 from sqlalchemy.orm import mapped_column
+from sqlalchemy.inspection import inspect
+
+from app.db.engine import engine_from_env
 
 
 class MetadataBase(DeclarativeBase):
@@ -81,25 +84,14 @@ class StockDaily(MetadataBase):
     # moving average
     ma_250:                     Mapped[Float]       = mapped_column(Float, nullable=True)
 
+    def to_dict(self, level=1):
+        if level == 0:
+            return {c.key: getattr(self, c.key) for c in self.__table__.columns}
+        elif level == 1:
+            return {c.key: getattr(self, c.key) for c in inspect(self).mapper.column_attrs}
+        else:
+            return {c.key: getattr(self, c.key) for c in inspect(self).mapper.column_attrs}
+
 
 if __name__ == "__main__":
-    from sqlalchemy import create_engine
-    from sqlalchemy.engine import URL
-    from dotenv import load_dotenv
-    import os
-
-
-    load_dotenv()
-
-    url = URL.create(
-        drivername= os.getenv("DB_DRIVER")          or 'postgresql',
-        username=   os.getenv("POSTGRES_USERNAME")  or 'postgres',
-        password=   os.getenv("POSTGRES_PASSWORD")  or 'postgres',
-        host=       os.getenv("POSTGRES_HOST")      or 'localhost',
-        port=   int(os.getenv("POSTGRES_PORT")      or '5432'),
-        database=   os.getenv("POSTGRES_DATABASE")
-    )
-
-    engine = create_engine(url)
-    
-    MetadataBase.metadata.create_all(engine)
+    MetadataBase.metadata.create_all(engine_from_env())
