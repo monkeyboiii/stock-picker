@@ -1,9 +1,10 @@
 from time import sleep
 from datetime import date
 from decimal import Decimal
+from typing import Optional
 
 from loguru import logger
-from pandas import notna
+from pandas import isna
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.engine import Engine
@@ -11,8 +12,12 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.ak.data import *
 from app.constant.exchange import *
+from app.constant.schedule import is_stock_market_open
 from app.db.engine import engine_from_env
 from app.db.models import Market, Stock, StockDaily
+
+
+SLEEP_TIME_SECS = 0.1
 
 
 def load_all_stocks(engine: Engine, market_name: str) -> None:
@@ -45,7 +50,7 @@ def load_all_stocks(engine: Engine, market_name: str) -> None:
 
 
 
-def load_all_stock_daily_hist(engine: Engine, market_name: str) -> None:
+def load_all_stock_daily_hist(engine: Engine, market_name: str, start_date: Optional[date] = None) -> None:
     if market_name not in market_map.keys():
         raise ValueError(f"exchange {market_name} not supported")
 
@@ -64,7 +69,8 @@ def load_all_stock_daily_hist(engine: Engine, market_name: str) -> None:
             for stock_row in stocks:
                 stock = stock_row[0]
                 end_date = date.today()
-                start_date = date(end_date.year - 2, end_date.month, end_date.day)
+                if start_date is None:
+                    start_date = date(end_date.year - 2, end_date.month, end_date.day)
 
                 logger.info(f"Getting daily data for {stock.name} from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
 
@@ -75,6 +81,7 @@ def load_all_stock_daily_hist(engine: Engine, market_name: str) -> None:
                     adjust='qfq'
                 )
 
+                # TODO move to ak/data.py
                 stock_objs = [
                     StockDaily(
                         code=stock.code,
@@ -92,54 +99,24 @@ def load_all_stock_daily_hist(engine: Engine, market_name: str) -> None:
                 session.add_all(stock_objs)
                 session.commit()
                 logger.info(f"Total of {len(stock_objs)} daily data for {stock.name} committed")
-                sleep(1)
+                # TODO async
+                sleep(SLEEP_TIME_SECS)
 
-
-            #     logger.warning(f"No stocks data in {market_name}")    
         else:
             logger.error(f"Market {market_name} not in database")
 
 
 
-# TODO testing required
-def refresh_stock_daily(engine: Engine) -> None:
-    today = date.today()
+def refresh_stock_daily(engine: Engine, today: Optional[date] = None) -> None:
+    if today is None:
+        today = date.today()
+
+    if not is_stock_market_open(today):
+        logger.error(f"Stock market is not open on {today.isoformat()}")
+        return
     
     with Session(engine) as session:
-        df = pull_stock_daily()
-        
-        df_column_mapping = {
-            '代码': 'code',
-            '今开': 'open',
-            '最高': 'high',
-            '最低': 'low',
-            '最新价': 'close',
-            '成交量': 'volume',
-            '成交额': 'turnover',
-            '总市值': 'capital',
-            '流通市值': 'circulation_capital',
-            '量比': 'quantity_relative_ratio',
-            '换手率': 'turnover_rate',
-        }
-        transformations = {
-            'open': lambda x: Decimal(format(x, '.3f')) if notna(x) else x,
-            'high': lambda x: Decimal(format(x, '.3f')) if notna(x) else x,
-            'low': lambda x: Decimal(format(x, '.3f')) if notna(x) else x,
-            'close': lambda x: Decimal(format(x, '.3f')) if notna(x) else x,
-            'volume': lambda x: int(x) if notna(x) else x,
-            'turnover': lambda x: int(x) if notna(x) else x,
-            'capital': lambda x: int(x) if notna(x) else x,
-            'circulation_capital': lambda x: int(x) if notna(x) else x,
-            'quantity_relative_ratio': lambda x: float(x) if notna(x) else x,
-            'turnover_rate': lambda x: float(x) if notna(x) else x,
-        }
-        mask = df.isna().sum(axis=1) < len(df_column_mapping) - 1
-
-        df = df.rename(columns=df_column_mapping)[list(df_column_mapping.values())]
-        df = df[mask]
-        df = df.where(notna(df), None)
-        for col, func in transformations.items():
-            df[col] = df[col].apply(func)
+        df = pull_stock_daily(today)
 
         try:
             if engine.dialect.name == 'postgresql':
@@ -162,9 +139,10 @@ def refresh_stock_daily(engine: Engine) -> None:
                     index_elements=['code', 'trade_day'],
                     set_=update_dict
                 )
+                session.execute(stmt)
             else:
                 for _, row in df.iterrows():
-                    one_stock = row.to_dict()
+                    one_stock = {key: (None if isna(value) else value) for key, value in row.to_dict().items()}
                     stock = StockDaily(
                         code=one_stock['code'],
                         trade_day=today,
@@ -193,8 +171,6 @@ def refresh_stock_daily(engine: Engine) -> None:
 if __name__ == '__main__':
     supported_markets = [SEX_SHANGHAI, SEX_SHENZHEN, SEX_BEIJING]
     unsupported_markets = [SEX_HONGKONG]
-    
-    engine = engine_from_env()
 
     # for market_name in unsupported_markets:
     # for market_name in supported_markets:
@@ -206,7 +182,7 @@ if __name__ == '__main__':
     # today's data
     # for market_name in unsupported_markets:
     # for market_name in supported_markets:
-        # load_all_stock_daily_hist(create_engine(url), market_name)
+    #     load_all_stock_daily_hist(engine_from_env(), market_name, start_date=date(2025, 2, 5))
 
     # load daily
-    # refresh_stock_daily(create_engine(url))
+    refresh_stock_daily(engine_from_env())

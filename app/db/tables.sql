@@ -48,3 +48,9 @@ CREATE TABLE
         -- close/open C/O
         FOREIGN KEY (code) REFERENCES stock (code),
     );
+
+
+CREATE TABLE stock_daily_dupe (LIKE stock_daily INCLUDING ALL);
+
+
+INSERT INTO stock_daily_dupe SELECT * FROM stock_daily WHERE trade_day = '2025-02-06';
