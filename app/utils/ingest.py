@@ -81,23 +81,23 @@ def load_all_stock_daily_hist(engine: Engine, market_name: str, start_date: Opti
                     adjust='qfq'
                 )
 
-                # TODO move to ak/data.py
                 stock_objs = [
                     StockDaily(
                         code=stock.code,
-                        trade_day=row['日期'],
-                        open=Decimal(format(row['开盘'], '.3f')),
-                        high=Decimal(format(row['最高'], '.3f')),
-                        low=Decimal(format(row['最低'], '.3f')),
-                        close=Decimal(format(row['收盘'], '.3f')),
-                        volume=int(row['成交量']),
-                        turnover=int(row['成交额'])
+                        trade_day=row['trade_day'],
+                        open=row['open'],
+                        high=row['high'],
+                        low=row['low'],
+                        close=row['close'],
+                        volume=row['volume'],
+                        turnover=row['turnover'],
                     )
                     for _, row in df.iterrows()
                 ]
 
                 session.add_all(stock_objs)
                 session.commit()
+                
                 logger.info(f"Total of {len(stock_objs)} daily data for {stock.name} committed")
                 # TODO async
                 sleep(SLEEP_TIME_SECS)
@@ -114,7 +114,8 @@ def refresh_stock_daily(engine: Engine, today: Optional[date] = None) -> None:
     if not is_stock_market_open(today):
         logger.error(f"Stock market is not open on {today.isoformat()}")
         return
-    
+
+
     with Session(engine) as session:
         df = pull_stock_daily(today)
 
@@ -140,6 +141,7 @@ def refresh_stock_daily(engine: Engine, today: Optional[date] = None) -> None:
                     set_=update_dict
                 )
                 session.execute(stmt)
+
             else:
                 for _, row in df.iterrows():
                     one_stock = {key: (None if isna(value) else value) for key, value in row.to_dict().items()}
@@ -158,7 +160,8 @@ def refresh_stock_daily(engine: Engine, today: Optional[date] = None) -> None:
                         turnover_rate=one_stock['turnover_rate'],
                     )
                     session.merge(stock)
-            
+
+
             session.commit()
             logger.info(f"Total of {len(df)} daily data committed for {today.isoformat()}")
         
@@ -171,10 +174,11 @@ def refresh_stock_daily(engine: Engine, today: Optional[date] = None) -> None:
 if __name__ == '__main__':
     supported_markets = [SEX_SHANGHAI, SEX_SHENZHEN, SEX_BEIJING]
     unsupported_markets = [SEX_HONGKONG]
+    engine = engine_from_env()
 
     # for market_name in unsupported_markets:
     # for market_name in supported_markets:
-    #     load_all_stocks(create_engine(url), market_name)
+    #     load_all_stocks(engine, market_name)
 
     # load 
     # daily data for the past 2 years
@@ -182,7 +186,7 @@ if __name__ == '__main__':
     # today's data
     # for market_name in unsupported_markets:
     # for market_name in supported_markets:
-    #     load_all_stock_daily_hist(engine_from_env(), market_name, start_date=date(2025, 2, 5))
+    #     load_all_stock_daily_hist(engine, market_name, start_date=date(2025, 2, 5))
 
     # load daily
-    refresh_stock_daily(engine_from_env())
+    refresh_stock_daily(engine)

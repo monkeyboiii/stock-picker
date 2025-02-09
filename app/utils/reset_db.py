@@ -15,6 +15,8 @@ def reset_table_content(engine: Engine, reset=False):
     with Session(engine) as session:
         if reset:
             MetadataBase.metadata.drop_all(engine)
+
+        # CREATE TABLE :name IF NOT EXISTS
         MetadataBase.metadata.create_all(engine)
 
         # preload market info

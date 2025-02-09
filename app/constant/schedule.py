@@ -148,8 +148,8 @@ CHINA_MAINLAND_HOLIDAYS = set([
 ])
 
 
-def is_stock_market_open(trade_day: date):
-    return trade_day.weekday() < 5 and trade_day not in CHINA_MAINLAND_HOLIDAYS
+def is_stock_market_open(day: date):
+    return day.weekday() < 5 and day not in CHINA_MAINLAND_HOLIDAYS
 
 
 if __name__ == '__main__':
