@@ -1,192 +1,61 @@
-from time import sleep
 from datetime import date
-from decimal import Decimal
 from typing import Optional
 
 from loguru import logger
-from pandas import isna
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.engine import Engine
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.ak.data import *
 from app.constant.exchange import *
-from app.constant.schedule import is_stock_market_open
+from app.constant.schedule import *
 from app.db.engine import engine_from_env
-from app.db.models import Market, Stock, StockDaily
+from app.db.models import Stock, StockDaily
+from app.db.ingest import load_individual_stock_daily_hist
 
 
-SLEEP_TIME_SECS = 0.1
+def auto_fill_hist(engine: Engine, up_to_date: Optional[date] = None) -> None:
+    if up_to_date is None:
+        up_to_date = date.today()
 
-
-def load_all_stocks(engine: Engine, market_name: str) -> None:
-    if market_name not in market_map.keys():
-        raise ValueError(f"exchange {market_name} not supported")
-
-
-    with Session(engine) as session:
-        market = session.execute(
-            select(Market).where(Market.name_short == market_name)
-        ).scalar_one_or_none()
-
-        if market is not None:
-            logger.info(f"Getting stocks info for {market_name}")
-            
-            df = pull_stock(market_name)
-            for code, name in zip(df['代码'], df['名称']):
-                stock = Stock(
-                    code=code, 
-                    name=name,
-                    market_id=market.id
-                )
-                session.add(stock)
-            
-            session.commit()
-            logger.info(f"Total of {len(df)} stocks committed into {market_name}")
-
-        else:
-            logger.warning(f"Market {market_name} not in database")
-
-
-
-def load_all_stock_daily_hist(engine: Engine, market_name: str, start_date: Optional[date] = None) -> None:
-    if market_name not in market_map.keys():
-        raise ValueError(f"exchange {market_name} not supported")
-
+    up_to_date = previous_trade_day(up_to_date, inclusive=True)
+    logger.info(f"Auto fill history data up to {up_to_date.isoformat()}")
 
     with Session(engine) as session:
+        latest_trade_day_subquery = (
+            select(StockDaily.trade_day)
+                .where(StockDaily.code == Stock.code)
+                .order_by(StockDaily.trade_day.desc())
+                .limit(1)
+                .correlate(Stock)
+                .scalar_subquery()
+        )
 
-        market = session.execute(
-            select(Market).where(Market.name_short == market_name)
-        ).scalar_one_or_none()
+        db_latest_dates = session.execute(
+            select(
+                Stock.code,
+                StockDaily.trade_day.label('latest_trade_day')
+            ).join(StockDaily, Stock.code == StockDaily.code)
+            .where(StockDaily.trade_day == latest_trade_day_subquery)
+        ).fetchall()
 
-        if market is not None:
-            stocks = session.execute(
-                select(Stock).where(Stock.market_id == market.id)
-            )
-            
-            for stock_row in stocks:
-                stock = stock_row[0]
-                end_date = date.today()
-                if start_date is None:
-                    start_date = date(end_date.year - 2, end_date.month, end_date.day)
-
-                logger.info(f"Getting daily data for {stock.name} from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
-
-                df = pull_stock_daily_hist(
-                    symbol=stock.code, 
-                    start_date=start_date,
-                    end_date=end_date, 
-                    adjust='qfq'
-                )
-
-                stock_objs = [
-                    StockDaily(
-                        code=stock.code,
-                        trade_day=row['trade_day'],
-                        open=row['open'],
-                        high=row['high'],
-                        low=row['low'],
-                        close=row['close'],
-                        volume=row['volume'],
-                        turnover=row['turnover'],
-                    )
-                    for _, row in df.iterrows()
-                ]
-
-                session.add_all(stock_objs)
-                session.commit()
-                
-                logger.info(f"Total of {len(stock_objs)} daily data for {stock.name} committed")
-                # TODO async
-                sleep(SLEEP_TIME_SECS)
-
-        else:
-            logger.error(f"Market {market_name} not in database")
-
-
-
-def refresh_stock_daily(engine: Engine, today: Optional[date] = None) -> None:
-    if today is None:
-        today = date.today()
-
-    if not is_stock_market_open(today):
-        logger.error(f"Stock market is not open on {today.isoformat()}")
-        return
-
-
-    with Session(engine) as session:
-        df = pull_stock_daily(today)
-
-        try:
-            if engine.dialect.name == 'postgresql':
-                # upsert statement
-                data = df.to_dict(orient='records')
-                stmt = pg_insert(StockDaily).values(data)
-                update_dict = {
-                    'open': stmt.excluded.open,
-                    'high': stmt.excluded.high,
-                    'low': stmt.excluded.low,
-                    'close': stmt.excluded.close,
-                    'volume': stmt.excluded.volume,
-                    'turnover': stmt.excluded.turnover,
-                    'capital': stmt.excluded.capital,
-                    'circulation_capital': stmt.excluded.circulation_capital,
-                    'quantity_relative_ratio': stmt.excluded.quantity_relative_ratio,
-                    'turnover_rate': stmt.excluded.turnover_rate,
-                }
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=['code', 'trade_day'],
-                    set_=update_dict
-                )
-                session.execute(stmt)
-
-            else:
-                for _, row in df.iterrows():
-                    one_stock = {key: (None if isna(value) else value) for key, value in row.to_dict().items()}
-                    stock = StockDaily(
-                        code=one_stock['code'],
-                        trade_day=today,
-                        open=one_stock['open'],
-                        high=one_stock['high'],
-                        low=one_stock['low'],
-                        close=one_stock['close'],
-                        volume=one_stock['volume'],
-                        turnover=one_stock['turnover'],
-                        capital=one_stock['capital'],
-                        circulation_capital=one_stock['circulation_capital'],
-                        quantity_relative_ratio=one_stock['quantity_relative_ratio'],
-                        turnover_rate=one_stock['turnover_rate'],
-                    )
-                    session.merge(stock)
-
-
-            session.commit()
-            logger.info(f"Total of {len(df)} daily data committed for {today.isoformat()}")
+        start_day_map = {}
         
-        except Exception as e:
-            session.rollback()
-            logger.error(f"Error in committing daily data for {today.isoformat()}: {e}")
+        for row in db_latest_dates:
+            code, db_latest_trade_day = row
+
+            if db_latest_trade_day is None:
+                continue
+            
+            supposed_next_trade_day = next_trade_day(db_latest_trade_day, inclusive=False)
+            if supposed_next_trade_day > up_to_date:
+                continue
+
+            start_day_map[code] = supposed_next_trade_day
+        
+        load_individual_stock_daily_hist(engine, start_day_map, up_to_date)
 
 
 
 if __name__ == '__main__':
-    supported_markets = [SEX_SHANGHAI, SEX_SHENZHEN, SEX_BEIJING]
-    unsupported_markets = [SEX_HONGKONG]
-    engine = engine_from_env()
-
-    # for market_name in unsupported_markets:
-    # for market_name in supported_markets:
-    #     load_all_stocks(engine, market_name)
-
-    # load 
-    # daily data for the past 2 years
-    # or
-    # today's data
-    # for market_name in unsupported_markets:
-    # for market_name in supported_markets:
-    #     load_all_stock_daily_hist(engine, market_name, start_date=date(2025, 2, 5))
-
-    # load daily
-    refresh_stock_daily(engine)
+    auto_fill_hist(engine_from_env())

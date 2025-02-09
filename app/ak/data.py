@@ -16,6 +16,10 @@ market_map = {
 
 
 def pull_stock(exchnage: str) -> DataFrame:
+    '''
+    Pulls basic stocks info for a given market.
+    '''
+
     if exchnage not in market_map.keys():
         raise ValueError(f"exchange {exchnage} not supported")
 
@@ -24,7 +28,10 @@ def pull_stock(exchnage: str) -> DataFrame:
 
 def pull_stock_daily(today: date) -> DataFrame:
     '''
-    @return ensures stock with no close or trade volume are ineligible for insertion
+    Ensures stocks are eligible for insertion.
+    
+    Ineligible:
+        1. stock with no close or trade volume
     '''
 
     column_mapping = {
@@ -65,7 +72,10 @@ def pull_stock_daily(today: date) -> DataFrame:
 
 def pull_stock_daily_hist(symbol: str, start_date: date, end_date: date, adjust: str = 'qfq') -> DataFrame:
     '''
-    @return ensures stock with no close or trade volume are ineligible for insertion
+    Ensures stocks are eligible for insertion.
+    
+    Ineligible:
+        1. stock with no close or trade volume
     '''
 
     column_mapping = {
@@ -93,6 +103,10 @@ def pull_stock_daily_hist(symbol: str, start_date: date, end_date: date, adjust:
         end_date=end_date.strftime('%Y%m%d'),
         adjust=adjust,
     )
+    
+    if len(df) == 0:
+        return DataFrame(index=range(0), columns=list(column_mapping.values()))
+    
     df = df.rename(columns=column_mapping)[list(column_mapping.values())]
     df = df[df['close'].notna() & df['volume'].notna()]
     for col, func in transformations.items():

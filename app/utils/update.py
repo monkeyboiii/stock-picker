@@ -56,7 +56,7 @@ def build_stmt_postgresql(trade_day: date) -> Select:
         .where(latest_lateral_subq.c.row_count == 250)
         .order_by(Stock.code)
     )
-    
+
     return stmt
 
 
@@ -75,7 +75,7 @@ def calculate_ma250(engine: Engine, trade_day: Optional[date] = None) -> None:
     # build query
     stmt = build_stmt_postgresql(trade_day) if engine.dialect.name == 'postgresql' else build_stmt(trade_day)
     logger.debug(stmt.compile(engine, compile_kwargs={"literal_binds": True}))
-    
+
     # execute
     with Session(engine) as session:
         results = session.execute(stmt)
@@ -95,10 +95,10 @@ def calculate_ma250(engine: Engine, trade_day: Optional[date] = None) -> None:
                 count += 1
                 stock_daily_obj.ma_250 = row.ma250
                 logger.info(f'Stock ({row.code}, {row.name}) has ma_250 of {row.ma250} on {trade_day.isoformat()}')
-        
+
         logger.info(f"Updated {count} ma250")
         session.commit()
-                
+
 
 
 if __name__ == '__main__':

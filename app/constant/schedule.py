@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 
 CHINA_MAINLAND_HOLIDAYS = set([
@@ -149,7 +149,31 @@ CHINA_MAINLAND_HOLIDAYS = set([
 
 
 def is_stock_market_open(day: date):
+    '''
+    Checks from 2023-01-01 to 2025-12-31.
+    '''
+
     return day.weekday() < 5 and day not in CHINA_MAINLAND_HOLIDAYS
+
+
+def previous_trade_day(day: date, inclusive = True) -> date:
+    if not inclusive:
+        day = day - timedelta(days=1)
+
+    while not is_stock_market_open(day):
+        day = day - timedelta(days=1)
+    
+    return day
+
+
+def next_trade_day(day: date, inclusive = True) -> date:
+    if not inclusive:
+        day = day + timedelta(days=1)
+
+    while not is_stock_market_open(day):
+        day = day + timedelta(days=1)
+    
+    return day
 
 
 if __name__ == '__main__':

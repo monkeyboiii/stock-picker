@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import date
 from decimal import Decimal
 
-from app.utils.ingest import refresh_stock_daily
+from app.db.ingest import refresh_stock_daily
 
 # --- Dummy Classes for Session and Engine ---
 
