@@ -2,7 +2,7 @@ from datetime import date
 
 from pandas import DataFrame, notna
 from decimal import Decimal
-import akshare as ak
+import akshare as ak # type: ignore
 
 from app.constant.exchange import *
 

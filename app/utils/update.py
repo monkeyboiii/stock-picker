@@ -1,4 +1,5 @@
 from typing import Optional
+from datetime import datetime
 
 from sqlalchemy import select, func, true, and_
 from sqlalchemy import Select
@@ -75,6 +76,7 @@ def calculate_ma250(engine: Engine, trade_day: Optional[date] = None, dryrun: Op
 
     # execute
     with Session(engine) as session:
+        start = datetime.now()
         results = session.execute(stmt)
         count = 0
         for row in results:
@@ -92,14 +94,16 @@ def calculate_ma250(engine: Engine, trade_day: Optional[date] = None, dryrun: Op
                 count += 1
                 if not dryrun:
                     stock_daily_obj.ma_250 = row.ma250
-                logger.info(f'Stock ({row.code}, {row.name}) has ma_250 of {row.ma250} on {trade_day.isoformat()}')
+                logger.debug(f'Stock ({row.code}, {row.name}) has ma_250 of {row.ma250} on {trade_day.isoformat()}')
 
         if not dryrun:
             session.commit()
-            logger.info(f"Updated a total of {count} ma_250 in db")
+            
+            elapsed_ms = round((datetime.now() - start).total_seconds() * 1000)
+            logger.info(f"Updated a total of {count} ma_250 in db in {elapsed_ms} ms")
         else:
             logger.warning(f"Showed a total of {count} ma_250")
 
 
 if __name__ == '__main__':
-    calculate_ma250(engine_from_env(), date(2025, 2, 7), dryrun=True)
+    calculate_ma250(engine_from_env(), date(2025, 2, 10), dryrun=True)

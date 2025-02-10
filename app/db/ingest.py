@@ -63,7 +63,6 @@ def load_individual_stock_daily_hist(
 
             logger.info(f"Total of {len(stock_objs)} daily data for {code} committed")
             # TODO async
-            
             sleep(SLEEP_TIME_SECS)
 
 

@@ -1,8 +1,8 @@
 from typing import Optional
+from datetime import date, datetime
 
-from sqlalchemy import select, func, and_, not_, true
+from sqlalchemy import select, func, and_, true
 from sqlalchemy import Select
-from sqlalchemy.orm import load_only
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import lateral
 from sqlalchemy.engine import Engine
@@ -137,6 +137,7 @@ def filter_desired(engine: Engine, trade_day: Optional[date] = None, dryrun: Opt
 
     matched_count = 0
     with Session(engine) as session:
+        start = datetime.now()
         results = session.execute(stmt)
         
         for result in results:
@@ -150,11 +151,16 @@ def filter_desired(engine: Engine, trade_day: Optional[date] = None, dryrun: Opt
             session.commit()
         logger.info(f"Found {matched_count} matching records.")
     
+        elapsed_ms = round((datetime.now() - start).total_seconds() * 1000)
+        logger.info(f"Filtering desired stocks completed in {elapsed_ms} ms")
 
     return DataFrame(output, columns=output_columns) if results else DataFrame()
 
 
 
 if __name__ == '__main__':
-    df = filter_desired(engine_from_env(), date(2025, 2, 7), dryrun=True)
+    trade_day = date(2025, 2, 10)
+    df = filter_desired(engine_from_env(), trade_day, dryrun=True)
+    df.to_csv(f'reports/report-{trade_day.isoformat()}.csv')
+    # df.to_excel(f'report/report-{trade_day.isoformat()}.xlsx')
     print(df)

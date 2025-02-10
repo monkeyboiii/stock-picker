@@ -15,7 +15,7 @@ WITH static_filtering AS
         JOIN stock s ON sd.code = s.code
         WHERE
                 -- T0
-                sd.trade_day = '2025-02-07' AND
+                sd.trade_day = '2025-02-10' AND
 
                 -- T2
                 sd.quantity_relative_ratio >= 1 AND
@@ -86,7 +86,7 @@ LEFT JOIN LATERAL
                 LIMIT 1
        ) AS vol_prev_day
        FROM stock_daily
-       WHERE code = sf.code AND trade_day = '2025-02-07'
+       WHERE code = sf.code AND trade_day = '2025-02-10'
 ) vol_prev ON true
 
 -- T1

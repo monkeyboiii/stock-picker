@@ -44,8 +44,7 @@ CREATE TABLE
         "capital" bigint,
         "quantity_relative_ratio" real,
         "turnover_rate" real,
-        "ma_250" real,
-        -- close/open C/O
+        "ma_250" real,  --- put here since it's a static filtering condition
         FOREIGN KEY (code) REFERENCES stock (code),
     );
 
