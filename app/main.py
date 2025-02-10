@@ -3,7 +3,7 @@ from datetime import date
 from db.engine import engine_from_env
 from db.ingest import refresh_stock_daily
 from utils.update import calculate_ma250
-from utils.filter import filter_out_desired
+from utils.filter import filter_desired
 
 
 def main():
@@ -13,7 +13,7 @@ def main():
     refresh_stock_daily(engine, trade_day)
     calculate_ma250(engine, trade_day)
 
-    df = filter_out_desired(engine, trade_day)
+    df = filter_desired(engine, trade_day)
 
     print(df)
 

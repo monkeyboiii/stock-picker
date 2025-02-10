@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import select, func, and_, not_
+from sqlalchemy import select, func, and_, not_, true
 from sqlalchemy import Select
 from sqlalchemy.orm import load_only
 from sqlalchemy.orm import Session
@@ -11,23 +11,19 @@ from pandas import DataFrame
 
 from app.ak.data import *
 from app.constant.exchange import *
-from app.constant.schedule import is_stock_market_open
+from app.constant.schedule import previous_trade_day
 from app.db.engine import engine_from_env
-from app.db.models import Stock, StockDaily
+from app.db.models import Stock, StockDaily, StockDailyFiltered
 
 
+def build_stmt_postgresql(trade_day: date) -> Select:
+    '''
+    Based on T1~8 conditions.
+    '''
 
-def filter_out_desired(engine: Engine, trade_day: Optional[date] = None) -> DataFrame:
-    if trade_day is None:
-        trade_day = date.today()
-
-    assert is_stock_market_open(trade_day)
-
-    increase = func.lag(StockDaily.close).over(order_by=StockDaily.trade_day.desc())
-
-    stmt = (
-        select(StockDaily, Stock.name, increase.label("increase"))
-            .join(Stock, Stock.code == StockDaily.code)
+    static_filtering_cte = (
+        select(Stock, StockDaily)
+            .select_from(Stock).join(StockDaily, Stock.code == StockDaily.code)
             .where(and_(
                 StockDaily.trade_day == trade_day,
 
@@ -41,8 +37,8 @@ def filter_out_desired(engine: Engine, trade_day: Optional[date] = None) -> Data
                 StockDaily.circulation_capital.between(2_0000_0000, 200_0000_0000),
 
                 # T6
-                Stock.name.not_ilike('%ST$'),
-                Stock.name.not_like('%*$'),
+                Stock.name.not_ilike('%ST%'),
+                Stock.name.not_like('%*%'),
 
                 # T7
                 StockDaily.close > StockDaily.ma_250,
@@ -50,14 +46,115 @@ def filter_out_desired(engine: Engine, trade_day: Optional[date] = None) -> Data
                 # T8
                 StockDaily.close > StockDaily.open,
             ))
+            .cte("static_filtering")
     )
 
-    logger.debug(stmt.compile(engine, compile_kwargs={"literal_binds": True}))
+    prev_subq = lateral(
+        select(StockDaily.close.label("close"))
+        .where(
+            StockDaily.code == static_filtering_cte.c.code,
+            StockDaily.trade_day < static_filtering_cte.c.trade_day
+        )
+        .order_by(StockDaily.trade_day.desc())
+        .limit(1)
+    )
 
-    return DataFrame()
+    innermost = (
+        select(StockDaily.volume)
+            .where(StockDaily.code == static_filtering_cte.c.code)
+            .order_by(StockDaily.trade_day.desc())
+            .correlate(static_filtering_cte)
+            .limit(5)
+    ).subquery()
+
+    vol_ma5_expr = select(func.avg(innermost.c.volume)).scalar_subquery()
+
+    vol_prev_day_expr = (
+        select(StockDaily.volume)
+            .where(
+                StockDaily.code == static_filtering_cte.c.code,
+                StockDaily.trade_day < static_filtering_cte.c.trade_day
+            )
+            .order_by(StockDaily.trade_day.desc())
+            .correlate(static_filtering_cte)
+            .limit(1)
+    ).scalar_subquery()
+
+    vol_prev_subq = lateral(
+        select(
+            vol_ma5_expr.label("vol_ma5"),
+            vol_prev_day_expr.label("vol_prev_day")
+        )
+        .where(
+            StockDaily.code == static_filtering_cte.c.code,
+            StockDaily.trade_day == trade_day
+        )
+    )
+
+    stmt = (
+        select(
+            static_filtering_cte.c.code,
+            static_filtering_cte.c.name,
+            static_filtering_cte.c.trade_day,
+            static_filtering_cte.c.close,
+            prev_subq.c.close.label("previous_close"),
+            func.round(100.0 * (static_filtering_cte.c.close / prev_subq.c.close - 1), 3).label("increase_ratio"),
+            static_filtering_cte.c.volume,
+            vol_prev_subq.c.vol_prev_day.label("previous_volume"),
+            func.round(vol_prev_subq.c.vol_ma5).label("ma_5_volume"),
+        )
+        .select_from(static_filtering_cte)
+        .join(prev_subq, true())
+        .join(vol_prev_subq, true())
+        .where(
+            # T1
+            func.round(100.0 * (static_filtering_cte.c.close / prev_subq.c.close - 1), 3).between(3, 5),
+            
+            # T5
+            static_filtering_cte.c.volume > vol_prev_subq.c.vol_ma5,
+            vol_prev_subq.c.vol_prev_day  < vol_prev_subq.c.vol_ma5,
+        )
+
+        # Tx
+        .order_by(static_filtering_cte.c.code.desc())
+    )
+
+    return stmt
+
+
+def filter_desired(engine: Engine, trade_day: Optional[date] = None, dryrun: Optional[bool] = False) -> DataFrame:
+    output = []
+    output_columns = StockDailyFiltered.__table__.columns.keys()
+
+    if trade_day is None:
+        trade_day = previous_trade_day(date.today(), inclusive=True)
+
+    if engine.dialect.name == 'postgresql':
+        stmt = build_stmt_postgresql(trade_day)
+        logger.debug(stmt.compile(engine, compile_kwargs={"literal_binds": True}))
+    else:
+        raise Exception('Not implemented!')
+
+    matched_count = 0
+    with Session(engine) as session:
+        results = session.execute(stmt)
+        
+        for result in results:
+            sdf = StockDailyFiltered(**result._mapping)
+            output.append(sdf.to_dict())
+            if not dryrun:
+                session.add(sdf)
+            matched_count += 1
+        
+        if not dryrun:
+            session.commit()
+        logger.info(f"Found {matched_count} matching records.")
+    
+
+    return DataFrame(output, columns=output_columns) if results else DataFrame()
 
 
 
 if __name__ == '__main__':
-    df = filter_out_desired(engine_from_env(), date(2025, 2, 7))
+    df = filter_desired(engine_from_env(), date(2025, 2, 7), dryrun=True)
     print(df)

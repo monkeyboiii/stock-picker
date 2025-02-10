@@ -50,6 +50,9 @@ class Stock(MetadataBase):
     market_id:      Mapped[int] = mapped_column(ForeignKey('market.id'))
 
 
+# TODO add stock section tables
+
+
 class StockDaily(MetadataBase):
     __tablename__ = "stock_daily"
     __table_args__ = (
@@ -93,5 +96,36 @@ class StockDaily(MetadataBase):
             return {c.key: getattr(self, c.key) for c in inspect(self).mapper.column_attrs}
 
 
+class StockDailyFiltered(MetadataBase):
+    '''
+    Filtered stocks for each day. Insert back to db for showing and backtest.
+    '''
+    
+    __tablename__ = "stock_daily_filtered"
+    __table_args__ = (
+        PrimaryKeyConstraint('code', 'trade_day'),
+    )
+
+    code:               Mapped[str]         = mapped_column(ForeignKey('stock.code'))
+    trade_day:          Mapped[Date]        = mapped_column(Date)
+    
+    # convenient
+    name:               Mapped[str]         = mapped_column(String)
+    volume:             Mapped[BigInteger]  = mapped_column(BigInteger)
+    close:              Mapped[Numeric]     = mapped_column(Numeric(10, 3))
+
+    # derived
+    increase_ratio:     Mapped[Float]       = mapped_column(Float)
+    previous_close:     Mapped[Numeric]     = mapped_column(Numeric(10, 3))
+    previous_volume:    Mapped[BigInteger]  = mapped_column(BigInteger)
+    ma_5_volume:        Mapped[BigInteger]  = mapped_column(BigInteger)
+
+    # backtest
+    # TODO add backtest columns
+
+    def to_dict(self):
+        return {c.key: getattr(self, c.key) for c in self.__table__.columns}
+
 if __name__ == "__main__":
-    MetadataBase.metadata.create_all(engine_from_env())
+    # MetadataBase.metadata.create_all(engine_from_env())
+    MetadataBase.metadata.tables['stock_daily_filtered'].create(engine_from_env())

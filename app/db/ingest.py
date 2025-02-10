@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.ak.data import *
 from app.constant.exchange import *
-from app.constant.schedule import is_stock_market_open
+from app.constant.schedule import is_stock_market_open, previous_trade_day
 from app.db.engine import engine_from_env
 from app.db.models import Market, Stock, StockDaily
 
@@ -160,7 +160,7 @@ def load_all_stocks(engine: Engine, market_name: str) -> None:
 
 def refresh_stock_daily(engine: Engine, today: Optional[date] = None) -> None:
     if today is None:
-        today = date.today()
+        today = previous_trade_day(date.today(), inclusive=True)
 
     if not is_stock_market_open(today):
         logger.error(f"Stock market is not open on {today.isoformat()}")
@@ -235,8 +235,8 @@ if __name__ == '__main__':
     # or
     # today's data
     # for market_name in unsupported_markets:
-    for market_name in supported_markets:
-        load_all_stock_daily_hist(engine, market_name, start_date=date(2025, 1, 28))
+    # for market_name in supported_markets:
+    #     load_all_stock_daily_hist(engine, market_name, start_date=date(2025, 1, 28))
 
     # load daily
-    # refresh_stock_daily(engine)
+    refresh_stock_daily(engine)

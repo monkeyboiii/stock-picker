@@ -24,7 +24,7 @@ def build_stmt_postgresql(trade_day: date) -> Select:
             .order_by(StockDaily.trade_day.desc())
             .limit(250)
             .correlate(Stock)
-    ).alias('inner')
+    ).alias('innermost')
 
     # lateral subquery rhs
     ma250_subq = (
@@ -60,20 +60,17 @@ def build_stmt_postgresql(trade_day: date) -> Select:
     return stmt
 
 
-def build_stmt(trade_day: date) -> Select:
-    # TODO
-    raise Exception("Not implemented!")
-
-
-
-def calculate_ma250(engine: Engine, trade_day: Optional[date] = None) -> None:
+def calculate_ma250(engine: Engine, trade_day: Optional[date] = None, dryrun: Optional[bool] = False) -> None:
     if trade_day is None:
         trade_day = date.today()
 
     assert is_stock_market_open(trade_day)
 
     # build query
-    stmt = build_stmt_postgresql(trade_day) if engine.dialect.name == 'postgresql' else build_stmt(trade_day)
+    if engine.dialect.name == 'postgresql':
+        stmt = build_stmt_postgresql(trade_day) 
+    else:
+        raise Exception("Not implemented!")
     logger.debug(stmt.compile(engine, compile_kwargs={"literal_binds": True}))
 
     # execute
@@ -93,13 +90,16 @@ def calculate_ma250(engine: Engine, trade_day: Optional[date] = None) -> None:
 
             if stock_daily_obj:
                 count += 1
-                stock_daily_obj.ma_250 = row.ma250
+                if not dryrun:
+                    stock_daily_obj.ma_250 = row.ma250
                 logger.info(f'Stock ({row.code}, {row.name}) has ma_250 of {row.ma250} on {trade_day.isoformat()}')
 
-        logger.info(f"Updated {count} ma250")
-        session.commit()
-
+        if not dryrun:
+            session.commit()
+            logger.info(f"Updated a total of {count} ma_250 in db")
+        else:
+            logger.warning(f"Showed a total of {count} ma_250")
 
 
 if __name__ == '__main__':
-    calculate_ma250(engine_from_env(), date(2025, 2, 7))
+    calculate_ma250(engine_from_env(), date(2025, 2, 7), dryrun=True)

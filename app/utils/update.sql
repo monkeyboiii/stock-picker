@@ -38,7 +38,7 @@ JOIN LATERAL
 (
        SELECT 
        (
-                SELECT avg(inner.close) AS avg_1 
+                SELECT avg(innermost.close) AS avg_1 
                 FROM 
                 (
                         SELECT stock_daily.close AS close 
@@ -46,11 +46,11 @@ JOIN LATERAL
                         WHERE stock_daily.code = stock.code 
                         ORDER BY stock_daily.trade_day DESC 
                         LIMIT 250
-                ) AS inner
+                ) AS innermost
        )
        AS ma250, 
        (
-                SELECT count(inner.close) AS count_1 
+                SELECT count(innermost.close) AS count_1 
                 FROM 
                 (
                         SELECT stock_daily.close AS close 
@@ -58,7 +58,7 @@ JOIN LATERAL
                         WHERE stock_daily.code = stock.code 
                         ORDER BY stock_daily.trade_day DESC 
                         LIMIT 250
-                ) AS inner
+                ) AS innermost
        ) 
        AS row_count 
        FROM stock_daily 
