@@ -72,6 +72,7 @@ LEFT JOIN LATERAL
                         SELECT volume AS volume
                         FROM stock_daily
                         WHERE code = sf.code
+                        AND trade_day <= sf.trade_day
                         ORDER BY trade_day DESC
                         LIMIT 5
                 ) AS innermost
