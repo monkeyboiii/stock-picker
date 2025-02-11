@@ -175,3 +175,10 @@ cython_debug/
 
 
 .vscode/
+
+
+reports/
+
+
+# google api
+credentials.json
