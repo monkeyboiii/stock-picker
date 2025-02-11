@@ -31,6 +31,7 @@ from dotenv import load_dotenv
 from app.constant.version import VERSION
 from app.constant.schedule import previous_trade_day
 from app.db.engine import engine_from_env
+from app.display.google_sheet import add_df_to_new_sheet
 from app.utils.ingest import auto_fill
 from app.utils.update import calculate_ma250
 from app.utils.filter import filter_desired
@@ -126,6 +127,8 @@ def main():
                         os.makedirs('reports')
                     df.to_csv(f'reports/report-{trade_day}.csv')
                     df.to_excel(f'reports/report-{trade_day}.xlsx')
+
+                    add_df_to_new_sheet(trade_day, df)
                     logger.info("output under reports/")
 
                 case _:

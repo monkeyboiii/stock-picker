@@ -1,4 +1,4 @@
--- auto_fill_hist
+-- auto_fill
 SELECT
         s.code AS code,
         s.name AS name,

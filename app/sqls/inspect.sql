@@ -5,7 +5,7 @@ SELECT * FROM stock_daily ORDER BY trade_day DESC LIMIT 10;
 SELECT * FROM stock_daily WHERE code = '688350' ORDER BY trade_day DESC LIMIT 10;
 
 -- count if updated
-SELECT COUNT(*) FROM stock_daily WHERE trade_day = '2025-02-10';
+SELECT COUNT(*) FROM stock_daily WHERE trade_day = '2025-02-11';
 
 -- count if update successful
-SELECT COUNT(*) FROM stock_daily WHERE trade_day = '2025-02-10' AND ma_250 IS NOT NULL;
+SELECT COUNT(*) FROM stock_daily WHERE trade_day = '2025-02-11' AND ma_250 IS NOT NULL;

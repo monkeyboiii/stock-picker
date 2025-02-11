@@ -1,6 +1,12 @@
+from typing import Optional
+
 from loguru import logger
 
-def confirms_execution():
+
+def confirms_execution(yes: Optional[bool] = False):
+    if yes:
+        return
+    
     user_input = input('Are you sure to continue? ([y]/n): ')
     if not user_input.lower() == 'y' and not user_input == '':
         logger.warning("You cancelled the operation")
