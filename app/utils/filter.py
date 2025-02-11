@@ -61,7 +61,10 @@ def build_stmt_postgresql(trade_day: date) -> Select:
 
     innermost = (
         select(StockDaily.volume)
-            .where(StockDaily.code == static_filtering_cte.c.code)
+            .where(and_(
+                StockDaily.code == static_filtering_cte.c.code,
+                StockDaily.trade_day <= static_filtering_cte.c.trade_day
+            ))
             .order_by(StockDaily.trade_day.desc())
             .correlate(static_filtering_cte)
             .limit(5)
