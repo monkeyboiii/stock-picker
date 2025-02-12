@@ -31,7 +31,7 @@ WITH static_filtering AS
                 s.name NOT LIKE '%*%' AND
                 
                 -- T7
-                sd.close > sd.ma_250 AND
+                sd.low > sd.ma_250 AND
 
                 -- T8
                 sd.close > sd.open

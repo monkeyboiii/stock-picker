@@ -41,7 +41,7 @@ def build_stmt_postgresql(trade_day: date) -> Select:
                 Stock.name.not_like('%*%'),
 
                 # T7
-                StockDaily.close > StockDaily.ma_250,
+                StockDaily.low > StockDaily.ma_250,
 
                 # T8
                 StockDaily.close > StockDaily.open,
