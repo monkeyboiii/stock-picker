@@ -34,6 +34,7 @@ from app.db.engine import engine_from_env
 from app.utils.ingest import auto_fill
 from app.utils.update import calculate_ma250
 from app.utils.filter import filter_desired
+from app.utils.reset_db import reset_table_content
 
 
 load_dotenv()
@@ -56,8 +57,11 @@ def build_parser():
                                            help='Initialize the database'
     )
     subparser_init.add_argument('-d', '--dry-run', action='store_true', default=False, help='Show table schema without initializing the database')
-    subparser_init.add_argument('-f', '--force', action='store_true', default=False, help='Force initialization of the database, resetting and dropping any existing data')
-    subparser_init.add_argument('-l', '--load', action='store_true', default=False, help='Load all historical data after initialization')
+    subparser_init.add_argument('-e', '--echo', action='store_true', default=False, help='Echoing DDLs')
+    subparser_init.add_argument('-i', '--ingest', action='store_true', default=False, help='Ingest all historical data after load')
+    subparser_init.add_argument('-l', '--load', action='store_true', default=False, help='Load all stocks and collections data after initialization')
+    subparser_init.add_argument('-r', '--reset', action='store_true', default=False, help='Reinitialization of the database by resetting and dropping any existing data')
+    subparser_reset.add_argument('-y', '--yes', action='store_true', default=False , help='Say yes to reset')
 
     #
     # run tasks
@@ -69,7 +73,7 @@ def build_parser():
     subparser_run.add_argument('-t', '--task', default='all', help='The trade task to run the stock picker for')
 
     #
-    # reset database
+    # reset tables
     subparser_reset = subparsers.add_parser('reset', 
                                             help='Reset the database to the initial/clean state'
     )
@@ -89,16 +93,23 @@ def main():
     engine = engine_from_env()
 
     match args.subcommand_name:
+        
+        ################################################################################
         case 'init':
-            print('Initializing the database')
-            if args.force:
-                logger.error("Not implmented!")
-            if args.dry_run:
-                logger.error("Not implmented!")
+            reset_table_content(
+                engine_from_env(echo=args.echo), 
+                reset=args.reset, 
+                dryrun=args.dryrun,
+                yes=args.yes
+            )
+            
+            # load stocks, collections
             if args.load:
-                logger.error("Not implmented!")
-
-
+                raise Exception("Not implemented yet!")    
+                if args.ingest:
+                    raise Exception("Not implemented yet!")
+        
+        ################################################################################
         case 'run':                
             trade_day = args.date
             task = args.task.strip()
@@ -131,6 +142,7 @@ def main():
                 case _:
                     logger.error(f"Unknown task: {task}")
 
+        ################################################################################
         case 'reset':
             print('Resetting the database')
             if args.yes:

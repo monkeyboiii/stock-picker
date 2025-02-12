@@ -1,3 +1,6 @@
+-- check market
+SELECT * FROM market;
+
 -- check latest trade daily data
 SELECT * FROM stock_daily ORDER BY trade_day DESC LIMIT 10;
 

@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import URL, Engine
         
 
-def engine_from_env() -> Engine:
+def engine_from_env(**kwargs) -> Engine:
     load_dotenv()
 
     url = URL.create(
@@ -17,4 +17,4 @@ def engine_from_env() -> Engine:
         database=   os.getenv("POSTGRES_DATABASE")
     )
 
-    return create_engine(url)
+    return create_engine(url, **kwargs)
