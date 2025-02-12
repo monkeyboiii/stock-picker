@@ -35,13 +35,13 @@ def get_stock_sheet():
     
 
 def add_df_to_new_sheet(trade_day: date, df: DataFrame) -> None:
-    start = datetime.now()
-    sheet = get_stock_sheet()
     title = trade_day.isoformat()
-
     if df.shape[0] == 0:
         logger.warning(f"No data to update for {title}")
         return
+
+    start = datetime.now()
+    sheet = get_stock_sheet()
 
     rows = max((df.shape[0] + 1) * 2, 50)
     columns = df.shape[1] + 10
