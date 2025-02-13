@@ -5,8 +5,8 @@ from loguru import logger
 
 def confirms_execution(
     action: Optional[str] = "",
+    defaultYes: Optional[bool] = True,
     yes: Optional[bool] = False,
-    defaultY: Optional[bool] = True,
 ):
     if yes:
         return
@@ -14,22 +14,20 @@ def confirms_execution(
     if action:
         logger.critical(action)
     
-    if defaultY:
+    if defaultYes:
         user_input = input(f'🚨 Are you sure to continue? ([y]/n): ')
-        if not user_input.lower() == 'y' and not user_input == '':
-            logger.warning("You cancelled the operation")
-            exit()
-        logger.debug("You confirmed the operation")
-
+        confirmed =  user_input.lower() == 'y' or user_input == ''
     else:
         user_input = input(f'🚨 Are you sure to continue? (y/[n]): ')
-        if not user_input.lower() == 'y':
-            logger.warning("You cancelled the operation")
-            exit()
-        logger.debug("You confirmed the operation")
+        confirmed = user_input.lower() == 'y'
 
+    if confirmed:
+        logger.debug("You confirmed the operation")
+    else:
+        logger.warning("You cancelled the operation")
+        exit()
 
 
 if __name__ == '__main__':
-    confirms_execution("Dropping a dookie...", defaultY=False)
+    confirms_execution("Dropping a dookie...", defaultYes=False)
     logger.success('should see this line if confirmed')

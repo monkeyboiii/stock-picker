@@ -1,3 +1,7 @@
+"""
+Ingesting is for dynamic data like stock daily/collection daily
+"""
+
 from time import sleep
 from datetime import date, timedelta
 from typing import Optional, Dict
@@ -126,35 +130,6 @@ def load_all_stock_daily_hist(
 
         else:
             logger.error(f"Market {market_name} not in database")
-
-
-def load_all_stocks(engine: Engine, market_name: str) -> None:
-    if market_name not in market_map.keys():
-        raise ValueError(f"exchange {market_name} not supported")
-
-
-    with Session(engine) as session:
-        market = session.execute(
-            select(Market).where(Market.name_short == market_name)
-        ).scalar_one_or_none()
-
-        if market is not None:
-            logger.info(f"Getting stocks info for {market_name}")
-
-            df = pull_stock(market_name)
-            for code, name in zip(df['代码'], df['名称']):
-                stock = Stock(
-                    code=code,
-                    name=name,
-                    market_id=market.id
-                )
-                session.add(stock)
-
-            session.commit()
-            logger.info(f"Total of {len(df)} stocks committed into {market_name}")
-
-        else:
-            logger.warning(f"Market {market_name} not in database")
 
 
 def refresh_stock_daily(engine: Engine, today: Optional[date] = None) -> None:

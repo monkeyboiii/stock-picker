@@ -54,8 +54,11 @@ class Collection(MetadataBase):
     '''
 
     __tablename__ = 'collection'
+    __table_args__ = (
+        UniqueConstraint("code"),
+    )
 
-    id:                         Mapped[int]         = mapped_column(Integer, primary_key=True)
+    id:                         Mapped[int]         = mapped_column(Integer, primary_key=True, autoincrement=True)
     code:                       Mapped[str]         = mapped_column(String(30), index=True)
     name:                       Mapped[str]         = mapped_column(String)
     type:                       Mapped[CollectionType]  = mapped_column(SQLAlchemyEnum(CollectionType))
@@ -169,7 +172,7 @@ class StockDailyFiltered(MetadataBase):
     code:                       Mapped[str]         = mapped_column(ForeignKey('stock.code'))
     trade_day:                  Mapped[Date]        = mapped_column(Date)
     filter_id:                  Mapped[int]         = mapped_column(Integer)
-    last_updated:               Mapped[DateTime] = mapped_column(DateTime)
+    last_updated:               Mapped[DateTime]    = mapped_column(DateTime)
     
     # convenient
     name:                       Mapped[str]         = mapped_column(String)
@@ -187,6 +190,8 @@ class StockDailyFiltered(MetadataBase):
 
     def to_dict(self):
         return {c.key: getattr(self, c.key) for c in self.__table__.columns}
+
+
 
 
 if __name__ == "__main__":

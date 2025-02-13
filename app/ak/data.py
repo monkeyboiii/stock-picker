@@ -5,6 +5,7 @@ from decimal import Decimal
 import akshare as ak # type: ignore
 
 from app.constant.exchange import *
+from app.constant.collection import *
 
 
 market_map = {
@@ -23,7 +24,14 @@ def pull_stock(exchnage: str) -> DataFrame:
     if exchnage not in market_map.keys():
         raise ValueError(f"exchange {exchnage} not supported")
 
-    return market_map[exchnage]()
+    column_mapping = {
+        '代码': 'code',
+        '名称': 'name',
+    }
+    df = market_map[exchnage]()
+    df = df.rename(columns=column_mapping)[list(column_mapping.values())]
+
+    return df
 
 
 def pull_stock_daily(today: date) -> DataFrame:
@@ -115,6 +123,40 @@ def pull_stock_daily_hist(symbol: str, start_date: date, end_date: date, adjust:
     return df
 
 
+def pull_collections(cType: CollectionType) -> DataFrame:
+    column_mapping = {
+        '板块名称': 'name',
+        '板块代码': 'code',
+    }
+
+    match cType:
+        case CollectionType.INDUSTRY_BOARD:
+            df = ak.stock_board_industry_name_em()
+            
+        case _:
+            raise Exception("Not implemented yet!")
+    
+    df = df.rename(columns=column_mapping)[list(column_mapping.values())]
+        
+    return df
+
+def pull_stocks_in_collection(cType: CollectionType, symbol: str) -> DataFrame:
+    column_mapping = {
+        '代码': 'code',
+        '名称': 'name',
+    }
+
+    match cType:
+        case CollectionType.INDUSTRY_BOARD:
+            df = ak.stock_board_industry_cons_em(symbol=symbol)
+            df = df.rename(columns=column_mapping)[list(column_mapping.values())]
+
+        case _:
+            raise Exception("Not implemented yet!")
+    
+    return df
+
+
 if __name__ == '__main__':
     # df = pull_stock(SEX_SHANGHAI)
     # print(df.head(10))
@@ -122,11 +164,16 @@ if __name__ == '__main__':
     # df_daily = pull_stock_daily(date.today())
     # print(df_daily.head(10))
 
-    df_daily_hist = pull_stock_daily_hist(
-        '870508', 
-        date(2024, 1, 1), 
-        date(2024, 1, 31), 
-        'qfq'
-    )
-    print(df_daily_hist.head(10))
+    # df_daily_hist = pull_stock_daily_hist(
+    #     '870508', 
+    #     date(2024, 1, 1), 
+    #     date(2024, 1, 31), 
+    #     'qfq'
+    # )
+    # print(df_daily_hist.head(10))
 
+    # df_collections = pull_collections(CollectionType.INDUSTRY_BOARD)
+    # print(df_collections.head(10))
+    
+    df_sic = pull_stocks_in_collection(CollectionType.INDUSTRY_BOARD, '小金属')
+    print(df_sic.head(10))

@@ -31,10 +31,11 @@ from dotenv import load_dotenv
 from app.constant.version import VERSION
 from app.constant.schedule import previous_trade_day
 from app.db.engine import engine_from_env
+from app.db.load import load_by_level
 from app.utils.ingest import auto_fill
 from app.utils.update import calculate_ma250
 from app.utils.filter import filter_desired
-from app.utils.reset_db import reset_table_content
+from app.utils.reset import reset_db_content
 
 
 load_dotenv()
@@ -56,19 +57,20 @@ def build_parser():
     subparser_init = subparsers.add_parser('init', 
                                            help='Initialize the database'
     )
-    subparser_init.add_argument('-d', '--dry-run', action='store_true', default=False, help='Show table schema without initializing the database')
+    subparser_init.add_argument('-d', '--dryrun', action='store_true', default=False, help='Show table schema without initializing the database')
     subparser_init.add_argument('-e', '--echo', action='store_true', default=False, help='Echoing DDLs')
     subparser_init.add_argument('-i', '--ingest', action='store_true', default=False, help='Ingest all historical data after load')
-    subparser_init.add_argument('-l', '--load', action='store_true', default=False, help='Load all stocks and collections data after initialization')
-    subparser_init.add_argument('-r', '--reset', action='store_true', default=False, help='Reinitialization of the database by resetting and dropping any existing data')
-    subparser_reset.add_argument('-y', '--yes', action='store_true', default=False , help='Say yes to reset')
+    subparser_init.add_argument('-l', '--load', action='count', default=0, help='Load 0: none, 1: market, 2: stocks, 3: collection data after initialization')
+    subparser_init.add_argument('-r', '--reset', action='store_true', default=False, help='Reinitialization of the database by dropping any all tables')
+    subparser_init.add_argument('-y', '--yes', action='store_true', default=False , help='Say yes to reset, use with caution')
 
     #
     # run tasks
     subparser_run = subparsers.add_parser('run',
                                           help='Run the stock picker, including refreshing stock data, calculating moving averages, and filtering desired stocks'
     )
-    subparser_run.add_argument('--date', default=previous_trade_day(date.today()), help='The trade day to run the stock picker for')
+    subparser_run.add_argument('--date', default=date.today().isoformat(), help='The trade day to run the stock picker for')
+    subparser_run.add_argument('-l', '--load', nargs='?', default='all', help='To load market/stock/collection/all (semi-)static data')
     subparser_run.add_argument('-d', '--dryrun', action='store_true', default=False , help='Show task run results without committing')
     subparser_run.add_argument('-t', '--task', default='all', help='The trade task to run the stock picker for')
 
@@ -92,30 +94,39 @@ def main():
     
     engine = engine_from_env()
 
-    match args.subcommand_name:
+    match args.subcommand_name.strip():
         
         ################################################################################
         case 'init':
-            reset_table_content(
+            dryrun = args.dryrun
+
+            reset_db_content(
                 engine_from_env(echo=args.echo), 
                 reset=args.reset, 
-                dryrun=args.dryrun,
-                yes=args.yes
+                dryrun=dryrun,
+                yes=args.yes,
             )
             
-            # load stocks, collections
-            if args.load:
-                raise Exception("Not implemented yet!")    
+            if not dryrun and args.load:
+                # load 
+                # none 0
+                # market 1
+                # stocks 2
+                # collections 3
+                load_by_level(engine=engine, level=args.load)
+
                 if args.ingest:
                     raise Exception("Not implemented yet!")
         
         ################################################################################
         case 'run':                
-            trade_day = args.date
+            trade_day = previous_trade_day(date.fromisoformat(args.date))
             task = args.task.strip()
             dryrun = args.dryrun
 
             match task:
+                case "load":
+                    raise Exception("Not implemented yet!")
                 case "ingest":
                     auto_fill(engine, trade_day)
                 case "update":
@@ -129,6 +140,7 @@ def main():
                     logger.error("Not implmented!")
 
                 case 'all':
+                    # assumes load is ready
                     auto_fill(engine, trade_day)
                     calculate_ma250(engine, trade_day)
                     df = filter_desired(engine, trade_day, dryrun=dryrun)

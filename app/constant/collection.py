@@ -17,3 +17,5 @@ COLLECTION_BOARD_ChiNext = 'ChiNext'
 
 
 # i
+COLLECTION_BOARD_INDUSTRY = 'industry'
+COLLECTION_BOARD_CONCEPT = 'concept'
