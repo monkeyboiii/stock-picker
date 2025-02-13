@@ -23,6 +23,7 @@ License: MIT
 import os
 import sys
 import argparse
+import json
 from datetime import date
 
 from loguru import logger
@@ -39,17 +40,16 @@ from app.utils.reset import reset_db_content
 
 
 load_dotenv()
-logger.remove()
-logger.add(sys.stdout, level=os.environ.get("LOG_LEVEL", "INFO"))
-
 
 
 def build_parser():
-    parser = argparse.ArgumentParser(
-        prog="stock-picker",
-        description='Setup database or run the stock picker',
+    parser = argparse.ArgumentParser(      prog="stock-picker",
+                                           description='Setup database or run the stock picker',
     )
-    parser.add_argument('--version', action='version', version=f'%(prog)s {VERSION}')
+    parser.add_argument('-s', '--supress', action='store_true', default=False, help='Supress any logs below WARNING, inclusive')
+    parser.add_argument('-q', '--quiet', action='store_true', default=False, help='Supress any logs below INFO, inclusive')
+    parser.add_argument('-v', '--verbose', action='count', default=0, help='Increase verbosity, default at INFO')
+    parser.add_argument('-V', '--version', action='version', version=f'%(prog)s {VERSION}')
     subparsers = parser.add_subparsers(dest="subcommand_name", help='subcommand help')
 
     #
@@ -71,17 +71,19 @@ def build_parser():
     )
     subparser_run.add_argument('--date', default=date.today().isoformat(), help='The trade day to run the stock picker for')
     subparser_run.add_argument('-l', '--load', nargs='?', default='all', help='To load market/stock/collection/all (semi-)static data')
-    subparser_run.add_argument('-d', '--dryrun', action='store_true', default=False , help='Show task run results without committing')
+    subparser_run.add_argument('-d', '--dryrun', action='store_true', default=False , help='Show task run results without committing, only applies to update/filter tasks')
     subparser_run.add_argument('-t', '--task', default='all', help='The trade task to run the stock picker for')
 
     #
     # reset tables
+    # TODO reset with backup, or for specific tables
     subparser_reset = subparsers.add_parser('reset', 
                                             help='Reset the database to the initial/clean state'
     )
     subparser_reset.add_argument('-b', '--backup',  help='Back up the database by dumping')
     subparser_reset.add_argument('-d', '--dryrun', action='store_true', default=False , help='Show the tables to be reset without actually resetting them')
     subparser_reset.add_argument('-i', '--init', action=argparse.BooleanOptionalAction, default=True, help='Init after purge')
+    subparser_reset.add_argument('-t', '--table',  help='Drop and create one table')
     subparser_reset.add_argument('-y', '--yes', action='store_true', default=False , help='Say yes to reset')
 
     return parser
@@ -90,18 +92,33 @@ def build_parser():
 def main():
     parser = build_parser()
     args = parser.parse_args()
-    logger.debug(f'Parsed args = {vars(args)}')
-    
-    engine = engine_from_env()
 
+    # configure log level
+    logger.remove()
+    if args.supress:
+        logger.add(sys.stdout, level=os.environ.get("LOG_LEVEL", "ERROR"))
+    elif args.quiet:
+        logger.add(sys.stdout, level=os.environ.get("LOG_LEVEL", "WARNING"))
+    else:
+        match args.verbose:
+            case 0:
+                logger.add(sys.stdout, level=os.environ.get("LOG_LEVEL", "INFO"))
+            case 1:
+                logger.add(sys.stdout, level=os.environ.get("LOG_LEVEL", "DEBUG"))
+            case _:
+                logger.add(sys.stdout, level=os.environ.get("LOG_LEVEL", "TRACE"))
+    logger.debug(f'Parsed args =\n{json.dumps(vars(args), sort_keys=True, indent=4)}')
+
+    # 
     match args.subcommand_name.strip():
         
         ################################################################################
         case 'init':
             dryrun = args.dryrun
+            engine = engine_from_env(echo=args.echo)
 
             reset_db_content(
-                engine_from_env(echo=args.echo), 
+                engine=engine,
                 reset=args.reset, 
                 dryrun=dryrun,
                 yes=args.yes,
@@ -120,6 +137,9 @@ def main():
         
         ################################################################################
         case 'run':                
+            engine = engine_from_env()
+            
+            # args
             trade_day = previous_trade_day(date.fromisoformat(args.date))
             task = args.task.strip()
             dryrun = args.dryrun
@@ -156,9 +176,7 @@ def main():
 
         ################################################################################
         case 'reset':
-            print('Resetting the database')
-            if args.yes:
-                logger.error("Not implmented!")
+            raise Exception("Not implemented yet!")
 
 
         case _:
