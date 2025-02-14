@@ -9,11 +9,11 @@ from sqlalchemy.engine import Engine
 from loguru import logger
 from pandas import DataFrame
 
-from app.ak.data import *
 from app.constant.exchange import *
 from app.constant.schedule import previous_trade_day
 from app.db.engine import engine_from_env
-from app.db.models import Stock, StockDaily, StockDailyFiltered
+from app.db.models import Stock, StockDaily, FeedDaily
+from app.filter.misc import StockFilter, get_filter_id
 
 
 def build_stmt_postgresql(trade_day: date) -> Select:
@@ -101,7 +101,7 @@ def build_stmt_postgresql(trade_day: date) -> Select:
             static_filtering_cte.c.trade_day,
             static_filtering_cte.c.close,
             prev_subq.c.close.label("previous_close"),
-            func.round(100.0 * (static_filtering_cte.c.close / prev_subq.c.close - 1), 3).label("increase_ratio"),
+            func.round(100.0 * (static_filtering_cte.c.close / prev_subq.c.close - 1), 3).label("gain"),
             static_filtering_cte.c.volume,
             vol_prev_subq.c.vol_prev_day.label("previous_volume"),
             func.round(vol_prev_subq.c.vol_ma5).label("ma_5_volume"),
@@ -127,7 +127,7 @@ def build_stmt_postgresql(trade_day: date) -> Select:
 
 def filter_desired(engine: Engine, trade_day: Optional[date] = None, dryrun: Optional[bool] = False) -> DataFrame:
     output = []
-    output_columns = StockDailyFiltered.__table__.columns.keys()
+    output_columns = FeedDaily.__table__.columns.keys()
 
     if trade_day is None:
         trade_day = previous_trade_day(date.today(), inclusive=True)
@@ -144,7 +144,10 @@ def filter_desired(engine: Engine, trade_day: Optional[date] = None, dryrun: Opt
         results = session.execute(stmt)
         
         for result in results:
-            sdf = StockDailyFiltered(**result._mapping)
+            sdf = FeedDaily(
+                filter_id=get_filter_id(StockFilter.TAIL_SCRAPER),
+                **result._mapping
+            )
             output.append(sdf.to_dict())
             if not dryrun:
                 session.add(sdf)

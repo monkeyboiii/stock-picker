@@ -3,10 +3,12 @@ import os
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.engine import URL, Engine
-        
+
+
+load_dotenv(override=True)
+
 
 def engine_from_env(**kwargs) -> Engine:
-    load_dotenv()
 
     url = URL.create(
         drivername= os.getenv("DB_DRIVER")          or 'postgresql',
@@ -16,5 +18,8 @@ def engine_from_env(**kwargs) -> Engine:
         port=   int(os.getenv("POSTGRES_PORT")      or '5432'),
         database=   os.getenv("POSTGRES_DATABASE")
     )
+
+    if url.drivername != 'postgresql':
+        raise Exception("Only support postgresql atm")
 
     return create_engine(url, **kwargs)

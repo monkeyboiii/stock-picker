@@ -10,10 +10,10 @@ from loguru import logger
 
 from app.constant.confirm import confirms_execution
 from app.db.engine import engine_from_env
-from app.utils.filter import filter_desired
+from app.filter.tail_scraper import filter_desired
 
 
-load_dotenv()
+load_dotenv(override=True)
 
 
 scopes = [

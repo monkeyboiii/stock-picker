@@ -6,7 +6,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.engine import Engine
 
-from app.ak.data import *
 from app.constant.exchange import *
 from app.constant.schedule import *
 from app.constant.confirm import confirms_execution

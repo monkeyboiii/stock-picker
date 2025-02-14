@@ -4,13 +4,13 @@
 SELECT 
        stock.code, 
        stock.name, 
-       round(latest.ma250, 3) AS ma250 
+       ROUND(latest.ma250, 3) AS ma250 
 FROM stock 
 JOIN LATERAL 
 (
        SELECT 
        (
-                SELECT avg(innermost.close) AS avg_1 
+                SELECT AVG(innermost.close) AS avg_1 
                 FROM 
                 (
                         SELECT stock_daily.close AS close 
@@ -22,7 +22,7 @@ JOIN LATERAL
        )
        AS ma250, 
        (
-                SELECT count(innermost.close) AS count_1 
+                SELECT COUNT(innermost.close) AS count_1 
                 FROM 
                 (
                         SELECT stock_daily.close AS close 

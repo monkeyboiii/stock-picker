@@ -22,8 +22,8 @@ License: MIT
 
 import os
 import sys
-import argparse
 import json
+import argparse
 from datetime import date
 
 from loguru import logger
@@ -33,13 +33,13 @@ from app.constant.version import VERSION
 from app.constant.schedule import previous_trade_day
 from app.db.engine import engine_from_env
 from app.db.load import load_by_level
+from app.filter.tail_scraper import filter_desired
 from app.utils.ingest import auto_fill
 from app.utils.update import calculate_ma250
-from app.utils.filter import filter_desired
 from app.utils.reset import reset_db_content
 
 
-load_dotenv()
+load_dotenv(override=True)
 
 
 def build_parser():

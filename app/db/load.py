@@ -12,15 +12,14 @@ from sqlalchemy import select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from app.ak.data import *
-from app.ak.data import market_map, pull_stock
+from app.data.ak import pull_collections, pull_stocks, pull_stocks_in_collection
 from app.constant.exchange import *
+from app.constant.misc import *
 from app.constant.collection import *
 from app.db.engine import engine_from_env
 from app.db.models import Collection, Market, Stock
 
 
-SLEEP_TIME_SECS = 0.1
 MARKET_CSV_FILE = os.path.join(os.path.dirname(__file__), "../constant/", 'market.csv')
 
 
@@ -40,7 +39,7 @@ def load_market(engine: Engine) -> None:
 
 
 def load_all_stocks(engine: Engine, market_name: str) -> None:
-    if market_name not in market_map.keys():
+    if market_name not in MARKET_SUPPORTED:
         raise ValueError(f"exchange {market_name} not supported")
 
 
@@ -52,7 +51,7 @@ def load_all_stocks(engine: Engine, market_name: str) -> None:
         if market is not None:
             logger.info(f"Getting stocks info for {market_name}")
 
-            df = pull_stock(market_name)
+            df = pull_stocks(market_name)
             for code, name in zip(df['code'], df['name']):
                 if code in BAD_STOCKS:
                     logger.warning(f"Bad stock {name} filtered out")
@@ -115,7 +114,7 @@ def load_collection_stock_relation(engine: Engine, collection_type: CollectionTy
             cName = collection[0].name
 
             df = pull_stocks_in_collection(cType=collection_type, symbol=cName)
-            sleep(SLEEP_TIME_SECS)
+            sleep(TIME_SLEEP_SECS)
             
             for code, name in zip(df['code'], df['name']):
                 stock = session.query(Stock).filter_by(code=code).first()
