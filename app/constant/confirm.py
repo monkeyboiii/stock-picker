@@ -22,7 +22,7 @@ def confirms_execution(
         confirmed = user_input.lower() == 'y'
 
     if confirmed:
-        logger.debug("You confirmed the operation")
+        logger.info("You confirmed the operation")
     else:
         logger.warning("You cancelled the operation")
         exit()

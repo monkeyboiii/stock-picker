@@ -18,6 +18,7 @@ from app.constant.misc import *
 from app.constant.collection import *
 from app.db.engine import engine_from_env
 from app.db.models import Collection, Market, Stock
+from app.profile.tracer import trace_elapsed
 
 
 MARKET_CSV_FILE = os.path.join(os.path.dirname(__file__), "../constant/", 'market.csv')
@@ -34,7 +35,7 @@ def load_market(engine: Engine) -> None:
                 session.add(market)
             
             session.commit()
-            logger.info('market table loaded')
+            logger.success('market table loaded')
         
 
 
@@ -64,7 +65,7 @@ def load_all_stocks(engine: Engine, market_name: str) -> None:
                 session.add(stock)
 
             session.commit()
-            logger.info(f"Total of {len(df)} stocks committed into {market_name}")
+            logger.success(f"Total of {len(df)} stocks committed into {market_name}")
 
         else:
             logger.warning(f"Market {market_name} not in database")
@@ -128,11 +129,11 @@ def load_collection_stock_relation(engine: Engine, collection_type: CollectionTy
             logger.info(f"Linked {len(df)} stocks for collection {cName}")
 
         session.commit()
-        logger.info(f"Total of {count} stock-collections relations committed")
+        logger.success(f"Total of {count} stock-collections relations linked and committed")
 
 
 
-
+@trace_elapsed(unit='s')
 def load_by_level(engine: Engine, level: Optional[int] = 0) -> None:
     if not level:
         logger.info("Load level 0: none")

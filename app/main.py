@@ -48,7 +48,9 @@ def build_parser():
     )
     parser.add_argument('-s', '--supress', action='store_true', default=False, help='Supress any logs below WARNING, inclusive')
     parser.add_argument('-q', '--quiet', action='store_true', default=False, help='Supress any logs below INFO, inclusive')
-    parser.add_argument('-v', '--verbose', action='count', default=0, help='Increase verbosity, default at INFO')
+    parser.add_argument('-S', '--store-log', action='store_true', default=False, help='Store logs to a seperate file')
+    parser.add_argument('-t', '--trace', action='store_true', default=False, help='Store tracing logs to a seperate file')
+    parser.add_argument('-v', '--verbose', action='count', default=0, help='Increase verbosity, default at SUCCESS')
     parser.add_argument('-V', '--version', action='version', version=f'%(prog)s {VERSION}')
     subparsers = parser.add_subparsers(dest="subcommand_name", help='subcommand help')
 
@@ -95,18 +97,27 @@ def main():
 
     # configure log level
     logger.remove()
+
+    if args.trace:
+        logger.add("tracing.log", level='TRACE', filter=lambda r: r['level'].name == 'TRACE')
+        logger.trace("Start tracing")
+    if args.store_log:
+        logger.add("full.log", level='DEBUG')
+        
     if args.supress:
-        logger.add(sys.stdout, level=os.environ.get("LOG_LEVEL", "ERROR"))
+        logger.add(sys.stdout, level="ERROR")
     elif args.quiet:
-        logger.add(sys.stdout, level=os.environ.get("LOG_LEVEL", "WARNING"))
+        logger.add(sys.stdout, level="WARNING")
     else:
         match args.verbose:
             case 0:
-                logger.add(sys.stdout, level=os.environ.get("LOG_LEVEL", "INFO"))
+                logger.add(sys.stdout, level="SUCCESS")
             case 1:
-                logger.add(sys.stdout, level=os.environ.get("LOG_LEVEL", "DEBUG"))
+                logger.add(sys.stdout, level="INFO")
+            case 2:
+                logger.add(sys.stdout, level="DEBUG")
             case _:
-                logger.add(sys.stdout, level=os.environ.get("LOG_LEVEL", "TRACE"))
+                logger.add(sys.stdout, level="TRACE")
     logger.debug(f'Parsed args =\n{json.dumps(vars(args), sort_keys=True, indent=4)}')
 
     # 
@@ -169,7 +180,6 @@ def main():
                         os.makedirs('reports')
                     df.to_csv(f'reports/report-{trade_day}.csv')
                     df.to_excel(f'reports/report-{trade_day}.xlsx')
-                    logger.info("output under reports/")
 
                 case _:
                     logger.error(f"Unknown task: {task}")

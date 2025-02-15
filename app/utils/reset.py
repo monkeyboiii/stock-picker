@@ -7,8 +7,10 @@ from sqlalchemy.schema import CreateTable, DropTable
 from app.constant.confirm import confirms_execution
 from app.db.engine import engine_from_env
 from app.db.models import MetadataBase
+from app.profile.tracer import trace_elapsed
 
 
+@trace_elapsed()
 def reset_db_content(
     engine: Engine, 
     dryrun: Optional[bool] = False,

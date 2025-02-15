@@ -12,8 +12,10 @@ from app.constant.confirm import confirms_execution
 from app.db.engine import engine_from_env
 from app.db.models import Stock, StockDaily
 from app.db.ingest import load_individual_stock_daily_hist, refresh_stock_daily
+from app.profile.tracer import trace_elapsed
 
 
+@trace_elapsed(unit='s')
 def auto_fill(engine: Engine, up_to_date: Optional[date] = None) -> None:
     '''
     Auto fill history data up to a specific date for all stocks.

@@ -14,6 +14,7 @@ from app.constant.schedule import previous_trade_day
 from app.db.engine import engine_from_env
 from app.db.models import Stock, StockDaily, FeedDaily
 from app.filter.misc import StockFilter, get_filter_id
+from app.profile.tracer import trace_elapsed
 
 
 def build_stmt_postgresql(trade_day: date) -> Select:
@@ -125,6 +126,7 @@ def build_stmt_postgresql(trade_day: date) -> Select:
     return stmt
 
 
+@trace_elapsed()
 def filter_desired(engine: Engine, trade_day: Optional[date] = None, dryrun: Optional[bool] = False) -> DataFrame:
     output = []
     output_columns = FeedDaily.__table__.columns.keys()
@@ -140,7 +142,6 @@ def filter_desired(engine: Engine, trade_day: Optional[date] = None, dryrun: Opt
 
     matched_count = 0
     with Session(engine) as session:
-        start = datetime.now()
         results = session.execute(stmt)
         
         for result in results:
@@ -157,9 +158,6 @@ def filter_desired(engine: Engine, trade_day: Optional[date] = None, dryrun: Opt
             session.commit()
         logger.info(f"Found {matched_count} matching records.")
     
-        elapsed_ms = round((datetime.now() - start).total_seconds() * 1000)
-        logger.info(f"Filtering desired stocks completed in {elapsed_ms} ms")
-
     return DataFrame(output, columns=output_columns) if results else DataFrame()
 
 

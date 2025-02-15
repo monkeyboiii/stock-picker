@@ -14,6 +14,7 @@ from app.constant.exchange import *
 from app.constant.schedule import is_stock_market_open
 from app.db.engine import engine_from_env
 from app.db.models import Stock, StockDaily
+from app.profile.tracer import trace_elapsed
 
 
 def build_stmt_postgresql(trade_day: date) -> Select:
@@ -60,6 +61,7 @@ def build_stmt_postgresql(trade_day: date) -> Select:
     return stmt
 
 
+@trace_elapsed()
 def calculate_ma250(engine: Engine, trade_day: Optional[date] = None, dryrun: Optional[bool] = False) -> None:
     if trade_day is None:
         trade_day = date.today()
