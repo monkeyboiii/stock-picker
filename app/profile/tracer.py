@@ -35,5 +35,5 @@ if __name__ == '__main__':
     import sys
     logger.remove()
     logger.add(sys.stdout, level='TRACE')
-    logger.add('trace.log', level='TRACE')
+    logger.add('tracing.log', level='TRACE')
     _example()

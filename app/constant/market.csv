@@ -1,5 +1,4 @@
 id,name,name_short,country,open,break_start,break_end,close,currency
-0,Monkey Exchange,MEX,CN,,,,,$MK
 1,Shanghai Stock Exchange,SSE,CN,09:30:00,11:30:00,13:00:00,15:00:00,CNY
 2,Shenzhen Stock Exchange,SZSE,CN,09:30:00,11:30:00,13:00:00,15:00:00,CNY
 3,Beijing Stock Exchange,BSE,CN,09:30:00,11:30:00,13:00:00,15:00:00,CNY
