@@ -1,3 +1,5 @@
+from typing import List
+
 from sqlalchemy import (
     Integer,
     String,
@@ -5,15 +7,20 @@ from sqlalchemy import (
     Date,
     Float,
     Numeric,
+    DateTime,
     BigInteger,
     ForeignKey,
+    UniqueConstraint,
     PrimaryKeyConstraint,
 )
+from sqlalchemy import func
 from sqlalchemy.orm import Mapped, DeclarativeBase
-from sqlalchemy.orm import mapped_column
+from sqlalchemy.orm import mapped_column, relationship
+from sqlalchemy.types import Enum as SQLAlchemyEnum
 from sqlalchemy.inspection import inspect
 
 from app.db.engine import engine_from_env
+from app.constant.collection import CollectionType
 
 
 class MetadataBase(DeclarativeBase):
@@ -22,47 +29,92 @@ class MetadataBase(DeclarativeBase):
 
 class Market(MetadataBase):
     '''
-
     Stores gloabl market information
     '''
+
     __tablename__ = 'market'
 
-    id:             Mapped[int] = mapped_column(Integer, primary_key=True)
-    name:           Mapped[str] = mapped_column(String)
-    name_short:     Mapped[str] = mapped_column(String, nullable=True)
-    country:        Mapped[str] = mapped_column(String, nullable=True)
+    id:                         Mapped[int]         = mapped_column(Integer, primary_key=True)
+    name:                       Mapped[str]         = mapped_column(String)
+    name_short:                 Mapped[str]         = mapped_column(String, nullable=True)
+    country:                    Mapped[str]         = mapped_column(String, nullable=True)
     
-    open:           Mapped[Time] = mapped_column(Time, nullable=True)
-    break_start:    Mapped[Time] = mapped_column(Time, nullable=True)
-    break_end:      Mapped[Time] = mapped_column(Time, nullable=True)
-    close:          Mapped[Time] = mapped_column(Time, nullable=True)
+    open:                       Mapped[Time]        = mapped_column(Time, nullable=True)
+    break_start:                Mapped[Time]        = mapped_column(Time, nullable=True)
+    break_end:                  Mapped[Time]        = mapped_column(Time, nullable=True)
+    close:                      Mapped[Time]        = mapped_column(Time, nullable=True)
 
-    currency:       Mapped[str]
+    currency:                   Mapped[str]         = mapped_column(String, nullable=True)
+
+
+class Collection(MetadataBase):
+    '''
+    A collection of stocks, such as concept board, industry board, index, analyst, etc.
+
+    - type:                     {'a', 'b', 'c', 'i', 'x'}
+    '''
+
+    __tablename__ = 'collection'
+
+    code:                       Mapped[str]         = mapped_column(String(30), primary_key=True)
+    name:                       Mapped[str]         = mapped_column(String)
+    type:                       Mapped[CollectionType]  = mapped_column(SQLAlchemyEnum(CollectionType))
+
+    #
+    stocks:                     Mapped[List["Stock"]]   = relationship(
+                                "Stock", secondary='relation_collection_stock', back_populates="collections")
 
 
 class Stock(MetadataBase):
     __tablename__ = 'stock'
+    __table_args__ = UniqueConstraint("name"),
 
-    code:           Mapped[str] = mapped_column(String(10), primary_key=True)
-    name:           Mapped[str] = mapped_column(String(50))
+    code:                       Mapped[str]         = mapped_column(String(10), primary_key=True)
+    name:                       Mapped[str]         = mapped_column(String(50))
 
-    #
-    market_id:      Mapped[int] = mapped_column(ForeignKey('market.id'))
+    # relations
+    market_id:                  Mapped[int]         = mapped_column(ForeignKey('market.id'))
+
+    collections:                Mapped[List["Collection"]] = relationship(
+                                "Collection", secondary='relation_collection_stock', back_populates="stocks")
 
 
-# TODO add stock section tables
+class RelationCollectionStock(MetadataBase):
+    __tablename__ = 'relation_collection_stock'
+    __table_args__ = PrimaryKeyConstraint('collection_code', 'stock_code'),
+
+    collection_code:            Mapped[int]         = mapped_column(ForeignKey('collection.code'))
+    stock_code:                 Mapped[str]         = mapped_column(ForeignKey('stock.code'))
+
+
+class CollectionDaily(MetadataBase):
+    __tablename__ = 'collection_daily'
+    __table_args__ = PrimaryKeyConstraint('code', 'trade_day'),
+
+    code:                       Mapped[int]         = mapped_column(ForeignKey('collection.code'))
+    trade_day:                  Mapped[Date]        = mapped_column(Date)
+    last_updated:               Mapped[DateTime]    = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    price:                      Mapped[Numeric]     = mapped_column(Numeric(10, 3), nullable=True)
+    change:                     Mapped[Numeric]     = mapped_column(Numeric(10, 3), nullable=True)
+    change_rate:                Mapped[Float]       = mapped_column(Float, nullable=True)
+    capital:                    Mapped[BigInteger]  = mapped_column(BigInteger, nullable=True)
+    turnover_rate:              Mapped[Float]       = mapped_column(Float, nullable=True)
+    gainer_count:               Mapped[int]         = mapped_column(Integer, nullable=True)
+    loser_count:                Mapped[int]         = mapped_column(Integer, nullable=True)
+    top_gainer:                 Mapped[str]         = mapped_column(String(50), nullable=True)
+    top_gain:                   Mapped[Float]       = mapped_column(Float, nullable=True)
 
 
 class StockDaily(MetadataBase):
     __tablename__ = "stock_daily"
-    __table_args__ = (
-        PrimaryKeyConstraint('code', 'trade_day'),
-    )
+    __table_args__ = PrimaryKeyConstraint('code', 'trade_day'),
 
     # basic
     code:                       Mapped[str]         = mapped_column(ForeignKey('stock.code'))
     trade_day:                  Mapped[Date]        = mapped_column(Date)
-    
+    last_updated:               Mapped[DateTime]    = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
     # price
     open:                       Mapped[Numeric]     = mapped_column(Numeric(10, 3), nullable=True)
     high:                       Mapped[Numeric]     = mapped_column(Numeric(10, 3), nullable=True)
@@ -96,29 +148,29 @@ class StockDaily(MetadataBase):
             return {c.key: getattr(self, c.key) for c in inspect(self).mapper.column_attrs}
 
 
-class StockDailyFiltered(MetadataBase):
+class FeedDaily(MetadataBase):
     '''
     Filtered stocks for each day. Insert back to db for showing and backtest.
     '''
     
-    __tablename__ = "stock_daily_filtered"
-    __table_args__ = (
-        PrimaryKeyConstraint('code', 'trade_day'),
-    )
+    __tablename__ = "feed_daily"
+    __table_args__ = PrimaryKeyConstraint('code', 'trade_day', 'filter_id'),
 
-    code:               Mapped[str]         = mapped_column(ForeignKey('stock.code'))
-    trade_day:          Mapped[Date]        = mapped_column(Date)
+    code:                       Mapped[str]         = mapped_column(ForeignKey('stock.code'))
+    trade_day:                  Mapped[Date]        = mapped_column(Date)
+    filter_id:                  Mapped[int]         = mapped_column(Integer, default=0)
+    last_updated:               Mapped[DateTime]    = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
     
     # convenient
-    name:               Mapped[str]         = mapped_column(String)
-    volume:             Mapped[BigInteger]  = mapped_column(BigInteger)
-    close:              Mapped[Numeric]     = mapped_column(Numeric(10, 3))
+    name:                       Mapped[str]         = mapped_column(String)
+    volume:                     Mapped[BigInteger]  = mapped_column(BigInteger)
+    close:                      Mapped[Numeric]     = mapped_column(Numeric(10, 3))
 
     # derived
-    increase_ratio:     Mapped[Float]       = mapped_column(Float)
-    previous_close:     Mapped[Numeric]     = mapped_column(Numeric(10, 3))
-    previous_volume:    Mapped[BigInteger]  = mapped_column(BigInteger)
-    ma_5_volume:        Mapped[BigInteger]  = mapped_column(BigInteger)
+    gain:                       Mapped[Float]       = mapped_column(Float)
+    previous_close:             Mapped[Numeric]     = mapped_column(Numeric(10, 3))
+    previous_volume:            Mapped[BigInteger]  = mapped_column(BigInteger)
+    ma_5_volume:                Mapped[BigInteger]  = mapped_column(BigInteger)
 
     # backtest
     # TODO add backtest columns
@@ -126,6 +178,10 @@ class StockDailyFiltered(MetadataBase):
     def to_dict(self):
         return {c.key: getattr(self, c.key) for c in self.__table__.columns}
 
+
+# TODO MATERIALIZED VIEW
+
+
 if __name__ == "__main__":
-    # MetadataBase.metadata.create_all(engine_from_env())
-    MetadataBase.metadata.tables['stock_daily_filtered'].create(engine_from_env())
+    MetadataBase.metadata.create_all(engine_from_env(echo=True))
+    # MetadataBase.metadata.tables['stock_daily_filtered'].create(engine_from_env())

@@ -1,19 +1,21 @@
 from typing import Optional
 from datetime import date, datetime
 
-from sqlalchemy import select, func, and_, true
+from sqlalchemy import Insert, select, func, and_, true
 from sqlalchemy import Select
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import lateral
 from sqlalchemy.engine import Engine
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from loguru import logger
 from pandas import DataFrame
 
-from app.ak.data import *
 from app.constant.exchange import *
 from app.constant.schedule import previous_trade_day
 from app.db.engine import engine_from_env
-from app.db.models import Stock, StockDaily, StockDailyFiltered
+from app.db.models import Stock, StockDaily, FeedDaily
+from app.filter.misc import StockFilter, get_filter_id
+from app.profile.tracer import trace_elapsed
 
 
 def build_stmt_postgresql(trade_day: date) -> Select:
@@ -101,7 +103,7 @@ def build_stmt_postgresql(trade_day: date) -> Select:
             static_filtering_cte.c.trade_day,
             static_filtering_cte.c.close,
             prev_subq.c.close.label("previous_close"),
-            func.round(100.0 * (static_filtering_cte.c.close / prev_subq.c.close - 1), 3).label("increase_ratio"),
+            func.round(100.0 * (static_filtering_cte.c.close / prev_subq.c.close - 1), 3).label("gain"),
             static_filtering_cte.c.volume,
             vol_prev_subq.c.vol_prev_day.label("previous_volume"),
             func.round(vol_prev_subq.c.vol_ma5).label("ma_5_volume"),
@@ -125,45 +127,67 @@ def build_stmt_postgresql(trade_day: date) -> Select:
     return stmt
 
 
+@trace_elapsed(unit='s')
 def filter_desired(engine: Engine, trade_day: Optional[date] = None, dryrun: Optional[bool] = False) -> DataFrame:
     output = []
-    output_columns = StockDailyFiltered.__table__.columns.keys()
+    output_columns = FeedDaily.__table__.columns.keys()
 
     if trade_day is None:
         trade_day = previous_trade_day(date.today(), inclusive=True)
 
     if engine.dialect.name == 'postgresql':
-        stmt = build_stmt_postgresql(trade_day)
-        logger.debug(stmt.compile(engine, compile_kwargs={"literal_binds": True}))
+        filter_stmt = build_stmt_postgresql(trade_day)
+        logger.debug(filter_stmt.compile(engine, compile_kwargs={"literal_binds": True}))
     else:
         raise Exception('Not implemented!')
 
-    matched_count = 0
     with Session(engine) as session:
-        start = datetime.now()
-        results = session.execute(stmt)
+        results = session.execute(filter_stmt)
         
         for result in results:
-            sdf = StockDailyFiltered(**result._mapping)
-            output.append(sdf.to_dict())
-            if not dryrun:
-                session.add(sdf)
-            matched_count += 1
+            fd = FeedDaily(
+                filter_id=get_filter_id(StockFilter.TAIL_SCRAPER),
+                **result._mapping
+            )
+            output.append(fd)
+
+        if not results:
+            return DataFrame()
+        
+        df = DataFrame([fd.to_dict() for fd in output], columns=output_columns)
+        df['last_updated'] = datetime.now()
         
         if not dryrun:
+            if engine.dialect.name == 'postgresql':
+                data = df.to_dict(orient='records')
+                insert_stmt = pg_insert(FeedDaily).values(data)
+                update_dict = {
+                    'name': insert_stmt.excluded.name,
+                    'volume': insert_stmt.excluded.volume,
+                    'close': insert_stmt.excluded.close,
+                    'gain': insert_stmt.excluded.gain,
+                    'previous_close': insert_stmt.excluded.previous_close,
+                    'previous_volume': insert_stmt.excluded.previous_volume,
+                    'ma_5_volume': insert_stmt.excluded.ma_5_volume,
+                }
+                insert_stmt = insert_stmt.on_conflict_do_update(
+                    index_elements=['code', 'trade_day', 'filter_id'],
+                    set_=update_dict
+                )
+                session.execute(insert_stmt)
+            else:
+                for fd in output:
+                    session.merge(fd)
             session.commit()
-        logger.info(f"Found {matched_count} matching records.")
+        logger.info(f"Found {len(output)} matching records.")
     
-        elapsed_ms = round((datetime.now() - start).total_seconds() * 1000)
-        logger.info(f"Filtering desired stocks completed in {elapsed_ms} ms")
-
-    return DataFrame(output, columns=output_columns) if results else DataFrame()
+    return df
 
 
 
 if __name__ == '__main__':
-    trade_day = date(2025, 2, 10)
-    df = filter_desired(engine_from_env(), trade_day, dryrun=True)
+    trade_day = date(2025, 2, 17)
+    df = filter_desired(engine_from_env(), trade_day, dryrun=False)
     df.to_csv(f'reports/report-{trade_day.isoformat()}.csv')
     # df.to_excel(f'report/report-{trade_day.isoformat()}.xlsx')
     print(df)

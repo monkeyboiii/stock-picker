@@ -1,3 +1,6 @@
+-- check market
+SELECT * FROM market;
+
 -- check latest trade daily data
 SELECT * FROM stock_daily ORDER BY trade_day DESC LIMIT 10;
 
@@ -9,3 +12,6 @@ SELECT COUNT(*) FROM stock_daily WHERE trade_day = '2025-02-10';
 
 -- count if update successful
 SELECT COUNT(*) FROM stock_daily WHERE trade_day = '2025-02-10' AND ma_250 IS NOT NULL;
+
+-- industry board
+SELECT s.name FROM stock s JOIN relation_collection_stock r ON s.code = r.stock_code JOIN collection c ON r.collection_id = c.id WHERE c.name = '通用设备';

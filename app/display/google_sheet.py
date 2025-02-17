@@ -10,10 +10,11 @@ from loguru import logger
 
 from app.constant.confirm import confirms_execution
 from app.db.engine import engine_from_env
-from app.utils.filter import filter_desired
+from app.filter.tail_scraper import filter_desired
+from app.profile.tracer import trace_elapsed
 
 
-load_dotenv()
+load_dotenv(override=True)
 
 
 scopes = [
@@ -34,8 +35,8 @@ def get_stock_sheet():
     return client.open_by_key(sheet_id)
     
 
+@trace_elapsed(unit='s')
 def add_df_to_new_sheet(trade_day: date, df: DataFrame) -> None:
-    start = datetime.now()
     sheet = get_stock_sheet()
     title = trade_day.isoformat()
 
@@ -56,11 +57,8 @@ def add_df_to_new_sheet(trade_day: date, df: DataFrame) -> None:
     except WorksheetNotFound:
         worksheet = sheet.add_worksheet(title=title, rows=rows, cols=columns)
 
-    df = df.applymap(str) # type: ignore
+    df = df.map(str)
     worksheet.update([df.columns.values.tolist()] + df.values.tolist()) # type: ignore
-
-    elapsed_ms = round((datetime.now() - start).total_seconds() * 1000)
-    logger.info(f"Sheet {title} updated in {elapsed_ms} ms")
 
 
 if __name__ == "__main__":

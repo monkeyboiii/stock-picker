@@ -1,20 +1,20 @@
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date
 
+from loguru import logger
 from sqlalchemy import select, func, true, and_
 from sqlalchemy import Select
 from sqlalchemy.orm import load_only
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import lateral
 from sqlalchemy.engine import Engine
-from loguru import logger
 
-from app.ak.data import *
+from app.constant.misc import *
 from app.constant.exchange import *
 from app.constant.schedule import is_stock_market_open
 from app.db.engine import engine_from_env
 from app.db.models import Stock, StockDaily
-
+from app.profile.tracer import trace_elapsed
 
 
 def build_stmt_postgresql(trade_day: date) -> Select:
@@ -61,6 +61,7 @@ def build_stmt_postgresql(trade_day: date) -> Select:
     return stmt
 
 
+@trace_elapsed(unit='s')
 def calculate_ma250(engine: Engine, trade_day: Optional[date] = None, dryrun: Optional[bool] = False) -> None:
     if trade_day is None:
         trade_day = date.today()
@@ -76,7 +77,6 @@ def calculate_ma250(engine: Engine, trade_day: Optional[date] = None, dryrun: Op
 
     # execute
     with Session(engine) as session:
-        start = datetime.now()
         results = session.execute(stmt)
         count = 0
         for row in results:
@@ -99,11 +99,25 @@ def calculate_ma250(engine: Engine, trade_day: Optional[date] = None, dryrun: Op
         if not dryrun:
             session.commit()
             
-            elapsed_ms = round((datetime.now() - start).total_seconds() * 1000)
-            logger.info(f"Updated a total of {count} ma_250 in db in {elapsed_ms} ms")
+            logger.info(f"Updated a total of {count} ma_250 for {trade_day} in db")
         else:
             logger.warning(f"Showed a total of {count} ma_250")
 
 
+def calculate_ma250_materialized_view(engine: Engine, trade_day: Optional[date] = None, dryrun: Optional[bool] = False) -> None:
+    pass
+
+
+# def calculate_ma250(engine: Engine, trade_day: Optional[date] = None, dryrun: Optional[bool] = False) -> None:
+    # pass
+
+
 if __name__ == '__main__':
-    calculate_ma250(engine_from_env(), date(2025, 2, 10), dryrun=True)
+    from app.constant.schedule import previous_trade_day
+
+    trade_day = previous_trade_day(date(2025, 2, 17))
+    calculate_ma250(
+        engine_from_env(), 
+        trade_day, 
+        dryrun=False,
+    )

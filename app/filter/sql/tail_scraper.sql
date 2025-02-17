@@ -42,10 +42,10 @@ SELECT
         sf.trade_day,
         sf.close,
         prev.close AS previous_close,
-        ROUND(100.0 * (sf.close / prev.close - 1), 3) AS increase_ratio,
+        ROUND(100.0 * (sf.close / prev.close - 1), 3) AS gain,
         sf.volume,
-        vol_prev.vol_prev_day as volume_previous_day,
-        ROUND(vol_prev.vol_ma5) AS volume_ma_5
+        vol_prev.vol_prev_day as previous_volume,
+        ROUND(vol_prev.vol_ma5) AS ma_5_volume
 FROM static_filtering sf
 
 LEFT JOIN LATERAL 

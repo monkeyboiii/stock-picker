@@ -1,84 +1,91 @@
 # Stock Picker
 
 This application is designed to set up and run a stock picker that
-1. refreshes stock data,
-2. calculates derived metrics, such as moving averages,
-3. filters desired stocks based on certain criteria,
+1. refreshes stock data;
+2. calculates derived metrics, such as moving averages and ranking;
+3. filters desired stocks based on certain criteria;
 4. displays filtered stocks into configured output.
 
 These tasks are run based on .env file and command line options.
 
+## State of Database
+
+It's recommended to use ***PostgreSQL*** version 16 or higher. The database can be in one of the several states below.
+
+1. Not or partially initialized.
+2. Intialized with basic market info in the `market`, `stock`, `collection` table.
+3. Partially filled `stock_daily` and `collection_daily` tables.
+4. Up-to-date (trade_day) `stock_daily` and `collection_daily` tables, but derived metrics are not or partially calculated.
+5. Up-to-date (trade_day) `stock_daily` and `collection_daily` tables, and up-to-date derived metrics.
+
+In state 5, the database is ready to run daily stock picking automation.
+
 ## Usage
 
-Since the applciation is designed to be run from different states of the database, it
+Since the application is designed to be run from different states of the database, it
 needs to be run in a specific order using different subcommands to ensure that the data is
 up-to-date and correct.
 
-### Install Dependencies
+### Preparation
+
+Dependencies
 
 ```sh
 pip install -r requirements
 ```
 
-### State of Database
+Environment
 
-It's recommended to use `PostgreSQL` version 16 or higher. The database can be in one of
-the several states below.
+* ***PostgreSQL*** database
+* `.env` file
+* google `credentials.json` for result upload
 
-1. Not initialized.
-2. Intialized with basic market info in the `market` table, and rest tables are empty.
-3. No or partially filled `stock` and `stock_daily` tables.
-4. `stock` and `stock_daily` and filled with up-to-date (trade_day) data, but derived metrics are not or partially calculated.
-5. `stock` and `stock_daily` and filled with up-to-date (trade_day) data, and derived metrics are calculated.
-
-In state 5, the database is ready to run daily stock picking automation.
-
-### List of Common Command
-
-When running in script mode
+### Execution
 
 ```sh
-PYTHONPATH=. python app/main.py <subcommand> [-option=[value]]*
+# can use module level import
+export PYTHONPATH=.
+
+python app/main.py [-h|--help]
 ```
-
-When running the packed executable
-
-```sh
-# build from src app/
-pyinstaller –onefile –windowed myscript.py
-
-# run
-./main <subcommand> [-option=[value]]*
-```
-
-The rest of the document will use `cmd` as shorthand for either of them.
-
 
 #### Init
 This corresponds to state 1 -> state 2 transition.
 ```sh
-init ...
-```
-
-#### Fill
-This corresponds to state 2 -> state 3/4 transition.
-```sh
-fill ...
+python app/main.py init -r -lll
 ```
 
 #### Run
-Since natural days go by and trade data may become outdated on a daily basis, this corresponds to the everyday state update from 5 -> 3/4 -> 5.
+
+This command can be run at state 2/3/4, which will push the state to 5.
+And once at state 5, you can schedule to run this command on a daily basis.
 ```sh
-run ...
+python app/main.py run
+```
+
+If you do not want to filter just yet, this command corresponds to state 2 -> state 3/4 transition.
+Since natural days go by and trade data may become outdated on a daily basis, this corresponds to the everyday state update from 5 -> 3 -> 4.
+```sh
+python app/main.py run -t ingest
+```
+
+This command changes state form 4 -> 5
+```sh
+python app/main.py run -t update
 ```
 
 #### reset
+
 This corresponds to state 2/3/4/5 -> state 1/2 transition.
 ```sh
-reset ...
+python app/main.py reset
 ```
 
 
-## Back Testing
+## TODOs
 
-- Backtests are not ready to run yet.
+- backtests
+- get state of database
+- redesign FeedDaily
+- google sheet update 
+- real time data from 2:30 to 3:00 (akshare/openD)
