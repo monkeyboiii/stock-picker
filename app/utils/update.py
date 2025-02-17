@@ -101,7 +101,7 @@ def calculate_ma250(engine: Engine, trade_day: Optional[date] = None, dryrun: Op
             session.commit()
             
             elapsed_ms = round((datetime.now() - start).total_seconds() * 1000)
-            logger.info(f"Updated a total of {count} ma_250 in db in {elapsed_ms} ms")
+            logger.info(f"Updated a total of {count} ma_250 for {trade_day} in db in {elapsed_ms} ms")
         else:
             logger.warning(f"Showed a total of {count} ma_250")
 
