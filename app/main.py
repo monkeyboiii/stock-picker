@@ -32,7 +32,8 @@ from dotenv import load_dotenv
 from app.constant.version import VERSION
 from app.constant.schedule import previous_trade_day
 from app.db.engine import engine_from_env
-from app.db.load import load_by_level
+from app.db.load import *
+from app.display.google_sheet import add_df_to_new_sheet
 from app.filter.tail_scraper import filter_desired
 from app.utils.ingest import auto_fill
 from app.utils.update import calculate_ma250
@@ -100,7 +101,7 @@ def main():
 
     if args.trace:
         logger.add("tracing.log", level='TRACE', filter=lambda r: r['level'].name == 'TRACE')
-        logger.trace("Start tracing")
+        logger.trace("-------------------- start tracing --------------------")
     if args.store_log:
         logger.add("full.log", level='DEBUG')
         
@@ -157,29 +158,42 @@ def main():
 
             match task:
                 case "load":
-                    raise Exception("Not implemented yet!")
+                    match args.load:
+                        case "market":
+                            load_market(engine)
+                        case "stock":
+                            for market_name in MARKET_SUPPORTED:
+                                load_all_stocks(engine, market_name)
+                        case "collection":
+                            dcts = load_default_collections(engine)
+                            for cType in dcts:
+                                load_collection_stock_relation(engine, cType)
+                        case "all":
+                            load_by_level(engine=engine, level=3)
+                        case _:
+                            logger.error(f"Unrecoginized load target {args.load}")
                 case "ingest":
                     auto_fill(engine, trade_day)
                 case "update":
                     calculate_ma250(engine, trade_day, dryrun=dryrun)
                 case "filter":
                     df = filter_desired(engine, trade_day, dryrun=dryrun)
-                    df.to_csv(f'reports/report-{trade_day}.csv')
-                    df.to_excel(f'reports/report-{trade_day}.xlsx')
+                    if dryrun:
+                        if not os.path.exists('reports'):
+                            os.makedirs('reports')
+                        df.to_csv(f'reports/report-{trade_day}.csv')
+                        df.to_excel(f'reports/report-{trade_day}.xlsx')
 
                 case "display":
-                    logger.error("Not implmented!")
+                    df = filter_desired(engine, trade_day, dryrun=dryrun)
+                    add_df_to_new_sheet(trade_day, df)
 
                 case 'all':
                     # assumes load is ready
                     auto_fill(engine, trade_day)
                     calculate_ma250(engine, trade_day)
                     df = filter_desired(engine, trade_day, dryrun=dryrun)
-                    
-                    if not os.path.exists('reports'):
-                        os.makedirs('reports')
-                    df.to_csv(f'reports/report-{trade_day}.csv')
-                    df.to_excel(f'reports/report-{trade_day}.xlsx')
+                    add_df_to_new_sheet(trade_day, df)
 
                 case _:
                     logger.error(f"Unknown task: {task}")

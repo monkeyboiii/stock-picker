@@ -61,7 +61,7 @@ def build_stmt_postgresql(trade_day: date) -> Select:
     return stmt
 
 
-@trace_elapsed()
+@trace_elapsed(unit='s')
 def calculate_ma250(engine: Engine, trade_day: Optional[date] = None, dryrun: Optional[bool] = False) -> None:
     if trade_day is None:
         trade_day = date.today()
@@ -77,7 +77,6 @@ def calculate_ma250(engine: Engine, trade_day: Optional[date] = None, dryrun: Op
 
     # execute
     with Session(engine) as session:
-        start = datetime.now()
         results = session.execute(stmt)
         count = 0
         for row in results:
@@ -100,8 +99,7 @@ def calculate_ma250(engine: Engine, trade_day: Optional[date] = None, dryrun: Op
         if not dryrun:
             session.commit()
             
-            elapsed_ms = round((datetime.now() - start).total_seconds() * 1000)
-            logger.info(f"Updated a total of {count} ma_250 for {trade_day} in db in {elapsed_ms} ms")
+            logger.info(f"Updated a total of {count} ma_250 for {trade_day} in db")
         else:
             logger.warning(f"Showed a total of {count} ma_250")
 
@@ -117,9 +115,9 @@ def calculate_ma250_materialized_view(engine: Engine, trade_day: Optional[date] 
 if __name__ == '__main__':
     from app.constant.schedule import previous_trade_day
 
-    trade_day = previous_trade_day(date(2025, 2, 10))
+    trade_day = previous_trade_day(date(2025, 2, 17))
     calculate_ma250(
         engine_from_env(), 
         trade_day, 
-        dryrun=True,
+        dryrun=False,
     )

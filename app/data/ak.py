@@ -157,7 +157,7 @@ def pull_stock_daily_hist(symbol: str, start_date: date, end_date: date, adjust:
 
 def pull_collection_daily(cType: CollectionType) -> DataFrame:
     column_mapping = {
-        '排名': 'rank',
+        # '排名': 'rank', # TODO maybe useful in deciding hot
         '板块代码': 'code',
         '最新价': 'price',
         '涨跌额': 'change',

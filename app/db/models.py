@@ -93,7 +93,7 @@ class CollectionDaily(MetadataBase):
 
     code:                       Mapped[int]         = mapped_column(ForeignKey('collection.code'))
     trade_day:                  Mapped[Date]        = mapped_column(Date)
-    last_updated:               Mapped[DateTime]    = mapped_column(DateTime, server_default=func.now())
+    last_updated:               Mapped[DateTime]    = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
     price:                      Mapped[Numeric]     = mapped_column(Numeric(10, 3), nullable=True)
     change:                     Mapped[Numeric]     = mapped_column(Numeric(10, 3), nullable=True)
@@ -102,7 +102,7 @@ class CollectionDaily(MetadataBase):
     turnover_rate:              Mapped[Float]       = mapped_column(Float, nullable=True)
     gainer_count:               Mapped[int]         = mapped_column(Integer, nullable=True)
     loser_count:                Mapped[int]         = mapped_column(Integer, nullable=True)
-    top_gainer:                 Mapped[str]         = mapped_column(ForeignKey('stock.name'), nullable=True)
+    top_gainer:                 Mapped[str]         = mapped_column(String(50), nullable=True)
     top_gain:                   Mapped[Float]       = mapped_column(Float, nullable=True)
 
 
@@ -113,7 +113,7 @@ class StockDaily(MetadataBase):
     # basic
     code:                       Mapped[str]         = mapped_column(ForeignKey('stock.code'))
     trade_day:                  Mapped[Date]        = mapped_column(Date)
-    last_updated:               Mapped[DateTime]    = mapped_column(DateTime, server_default=func.now())
+    last_updated:               Mapped[DateTime]    = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
     # price
     open:                       Mapped[Numeric]     = mapped_column(Numeric(10, 3), nullable=True)
@@ -159,7 +159,7 @@ class FeedDaily(MetadataBase):
     code:                       Mapped[str]         = mapped_column(ForeignKey('stock.code'))
     trade_day:                  Mapped[Date]        = mapped_column(Date)
     filter_id:                  Mapped[int]         = mapped_column(Integer, default=0)
-    last_updated:               Mapped[DateTime]    = mapped_column(DateTime, server_default=func.now())
+    last_updated:               Mapped[DateTime]    = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
     
     # convenient
     name:                       Mapped[str]         = mapped_column(String)

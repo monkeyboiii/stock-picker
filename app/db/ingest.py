@@ -4,7 +4,7 @@ Ingesting is for dynamic data like stock daily/collection daily
 
 from time import sleep
 from datetime import date, timedelta
-from typing import Optional, Dict
+from typing import Optional, Dict, Set
 
 from pandas import isna
 from loguru import logger
@@ -19,8 +19,7 @@ from app.constant.misc import *
 from app.constant.schedule import *
 from app.data.ak import pull_collection_daily, pull_stock_daily, pull_stock_daily_hist
 from app.db.engine import engine_from_env
-from app.db.models import Market, Stock, StockDaily, CollectionDaily
-
+from app.db.models import Collection, Market, Stock, StockDaily, CollectionDaily
 
 
 def load_individual_stock_daily_hist(
@@ -36,13 +35,17 @@ def load_individual_stock_daily_hist(
             assert start_day <= end_date
 
             logger.debug(f"Getting daily data of {code} for {(end_date - start_day + timedelta(days=1)).days} days")
-
-            df = pull_stock_daily_hist(
-                symbol=code,
-                start_date=start_day,
-                end_date=end_date,
-                adjust='qfq'
-            )
+            try:
+                df = pull_stock_daily_hist(
+                    symbol=code,
+                    start_date=start_day,
+                    end_date=end_date,
+                    adjust='qfq'
+                )
+            except KeyError:
+                logger.error(f'Got key error of stock code {code}, continuing...')
+                session.commit()
+                continue
 
             if len(df) == 0:
                 logger.warning(f"No daily data for {code} from {start_day} to {end_date}")
@@ -144,6 +147,17 @@ def refresh_stock_daily(engine: Engine, today: Optional[date] = None) -> None:
     with Session(engine) as session:
         df = pull_stock_daily()
 
+        db_stock_codes = {row[0] for row in session.execute(select(Stock.code)).fetchall()}
+        data_stock_codes = set(df['code'])
+        stock_codes_to_handle = data_stock_codes.difference(db_stock_codes)
+        for code in stock_codes_to_handle:
+            # TODO 
+            # dynamic handle
+            # query stock info change
+            logger.warning(f"stock {code} returned not availabe in database")
+        df = df[~df['code'].isin(stock_codes_to_handle)]
+        df['trade_day'] = today
+
         try:
             if engine.dialect.name == 'postgresql':
                 # upsert statement
@@ -205,6 +219,17 @@ def refresh_collection_daily(engine: Engine, collection_type: CollectionType, to
 
     with Session(engine) as session:
         df = pull_collection_daily(collection_type)
+
+        db_collection_codes = {row[0] for row in session.execute(select(Collection.code)).fetchall()}
+        data_collection_codes = set(df['code'])
+        collection_codes_to_handle = data_collection_codes.difference(db_collection_codes)
+        for code in collection_codes_to_handle:
+            # TODO 
+            # dynamic handle
+            # query stock info change
+            logger.warning(f"collection {code} returned not availabe in database")
+        df = df[~df['code'].isin(collection_codes_to_handle)]
+        df['trade_day'] = today
 
         try:
             if engine.dialect.name == 'postgresql':

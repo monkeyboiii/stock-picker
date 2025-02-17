@@ -57,7 +57,7 @@ def add_df_to_new_sheet(trade_day: date, df: DataFrame) -> None:
     except WorksheetNotFound:
         worksheet = sheet.add_worksheet(title=title, rows=rows, cols=columns)
 
-    df = df.applymap(str) # type: ignore
+    df = df.map(str)
     worksheet.update([df.columns.values.tolist()] + df.values.tolist()) # type: ignore
 
 
