@@ -2,44 +2,48 @@
 -- optimized
 -- for dbms that support lateral
 SELECT 
-       stock.code, 
-       stock.name, 
+       s.code,
+       s.name,
        ROUND(latest.ma250, 3) AS ma250 
-FROM stock 
+FROM stock s
+JOIN stock_daily sd ON s.code = sd.code
 JOIN LATERAL 
 (
        SELECT 
        (
-                SELECT AVG(innermost.close) AS avg_1 
+                SELECT AVG(innermost.close)
                 FROM 
                 (
-                        SELECT stock_daily.close AS close 
+                        SELECT close
                         FROM stock_daily 
-                        WHERE stock_daily.code = stock.code 
-                        ORDER BY stock_daily.trade_day DESC 
+                        WHERE code = s.code
+                        AND trade_day <= sd.trade_day
+                        ORDER BY trade_day DESC 
                         LIMIT 250
                 ) AS innermost
        )
-       AS ma250, 
+       AS ma250,
        (
-                SELECT COUNT(innermost.close) AS count_1 
+                SELECT COUNT(innermost.close)
                 FROM 
                 (
-                        SELECT stock_daily.close AS close 
-                        FROM stock_daily 
-                        WHERE stock_daily.code = stock.code 
-                        ORDER BY stock_daily.trade_day DESC 
+                        SELECT close
+                        FROM stock_daily
+                        WHERE code = s.code
+                        AND trade_day <= sd.trade_day
+                        ORDER BY trade_day DESC
                         LIMIT 250
                 ) AS innermost
        ) 
-       AS row_count 
+       AS row_count
        FROM stock_daily 
-       WHERE stock_daily.code = stock.code AND stock_daily.trade_day = '2025-02-10'
-) AS latest ON true 
+       WHERE code = s.code AND trade_day = '2025-02-07'
+) AS latest ON true
 WHERE 
+        sd.trade_day = '2025-02-07' AND
         latest.row_count = 250 
-ORDER BY 
-        stock.code;
+ORDER BY
+        s.code;
 
 
 --
