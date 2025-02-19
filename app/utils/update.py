@@ -21,7 +21,10 @@ def build_stmt_postgresql(trade_day: date) -> Select:
     # inner most
     last_250_inner_subq = (
         select(StockDaily.close)
-            .where(StockDaily.code == Stock.code)
+            .where(and_(
+                StockDaily.code == Stock.code,
+                StockDaily.trade_day <= trade_day,
+            ))
             .order_by(StockDaily.trade_day.desc())
             .limit(250)
             .correlate(Stock)
@@ -53,8 +56,12 @@ def build_stmt_postgresql(trade_day: date) -> Select:
             Stock.name,
             func.round(latest_lateral_subq.c.ma250, 3).label('ma250')
         )
+        .join(StockDaily, Stock.code == StockDaily.code)
         .select_from(Stock).join(latest_lateral_subq, true())
-        .where(latest_lateral_subq.c.row_count == 250)
+        .where(and_(
+            StockDaily.trade_day == trade_day,
+            latest_lateral_subq.c.row_count == 250
+        ))
         .order_by(Stock.code)
     )
 
