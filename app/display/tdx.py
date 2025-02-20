@@ -6,12 +6,12 @@ from typing import Optional
 from dotenv import load_dotenv
 from loguru import logger
 from pandas import DataFrame
-from sqlalchemy import Engine, select
+from sqlalchemy import Engine, distinct, select
 from sqlalchemy.orm import Session
 
 from app.constant.exchange import *
 from app.constant.schedule import previous_trade_day
-from app.db.models import Market, Stock
+from app.db.models import FeedDaily, Market, Stock
 from app.filter.tail_scraper import filter_desired
 
 
@@ -33,22 +33,27 @@ def prefix_market_number(code: str, market_name_short: str) -> str:
         return code
 
 
-def add_to_tdx_path(engine: Engine, df: DataFrame, trade_day: Optional[date] = None) -> None:
+def add_to_tdx_path(engine: Engine, df: Optional[DataFrame] = None, trade_day: Optional[date] = None) -> None:
     if trade_day is None:
         trade_day = previous_trade_day(date.today())
 
     with Session(engine) as session:
-        market_query = select(
-            Stock.code, Stock.name, Market.name_short
-        ).join(Market, Stock.market_id == Market.id).where(
-            Stock.code.in_(df['code'])
-        )
+        if df is None:
+            market_query = select(
+                distinct(Stock.code).label('code'), Stock.name, Market.name_short
+            ).join(
+                Market, Stock.market_id == Market.id
+            ).join(
+                FeedDaily, (Stock.code == FeedDaily.code)
+            ).where(
+                FeedDaily.trade_day == trade_day
+            )
 
-        result = session.execute(market_query)
+            result = session.execute(market_query)
+            df = DataFrame(result.all(), columns=result.keys()) # type: ignore
 
-        df = DataFrame(result.fetchall(), columns=result.columns)
         df.loc[:, 'code'] = df.apply(
-            lambda x: prefix_market_number(x['code'], x['name_short'])
+            lambda x: prefix_market_number(x['code'], x['name_short']), axis=1
         )
         df = df[['code', 'name']]
         df.to_csv(Path.joinpath(TDX_PATH, f"选股-{trade_day}.csv"), index=False, header=False)
@@ -59,6 +64,9 @@ if __name__ == '__main__':
     from app.db.engine import engine_from_env
 
     engine = engine_from_env()
-    trade_day = date(2025, 2, 10)
-    df = filter_desired(engine, trade_day, dryrun=True)
-    add_to_tdx_path(engine, df, trade_day)
+    trade_day = date(2025, 2, 20)
+    
+    # df = filter_desired(engine, trade_day, dryrun=True)
+    # add_to_tdx_path(engine, df=df, trade_day=trade_day)
+    
+    add_to_tdx_path(engine, trade_day=trade_day)
