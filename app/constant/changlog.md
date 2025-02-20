@@ -1,7 +1,7 @@
 # Change Log
 
 ## 0.1.0
-Minium viable prototype. Added main with args.
+Minimum viable prototype. Added main with args.
 
 ## 0.0.9
 Added main with args.

@@ -13,12 +13,13 @@ from pandas import DataFrame
 from app.constant.exchange import *
 from app.constant.schedule import previous_trade_day
 from app.db.engine import engine_from_env
+from app.db.materialized_view import MV_STOCK_DAILY, check_mv_exists
 from app.db.models import Stock, StockDaily, FeedDaily
 from app.filter.misc import StockFilter, get_filter_id
 from app.profile.tracer import trace_elapsed
 
 
-def build_stmt_postgresql(trade_day: date) -> Select:
+def build_stmt_postgresql_lateral(trade_day: date) -> Select:
     '''
     Based on T1~8 conditions.
     '''
@@ -125,6 +126,17 @@ def build_stmt_postgresql(trade_day: date) -> Select:
     )
 
     return stmt
+
+
+def build_stmt_postgresql_mv(trade_day: date) -> Select:
+    pass
+
+
+def build_stmt_postgresql(engine: Engine, trade_day: date) -> Select:
+    if check_mv_exists(engine, MV_STOCK_DAILY):
+        return build_stmt_postgresql_mv(trade_day)
+    else:
+        return build_stmt_postgresql_lateral(trade_day)
 
 
 @trace_elapsed(unit='s')

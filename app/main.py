@@ -47,9 +47,9 @@ def build_parser():
     parser = argparse.ArgumentParser(      prog="stock-picker",
                                            description='Setup database or run the stock picker',
     )
+    parser.add_argument('-q', '--quiet', action='store_true', default=False, help='Supress any logs below SUCCESS, inclusive')
     parser.add_argument('-s', '--supress', action='store_true', default=False, help='Supress any logs below WARNING, inclusive')
-    parser.add_argument('-q', '--quiet', action='store_true', default=False, help='Supress any logs below INFO, inclusive')
-    parser.add_argument('-S', '--store-log', action='store_true', default=False, help='Store logs to a seperate file')
+    parser.add_argument('-S', '--store-log', action='store_true', default=False, help='Store full logs to a seperate file')
     parser.add_argument('-t', '--trace', action='store_true', default=False, help='Store tracing logs to a seperate file')
     parser.add_argument('-v', '--verbose', action='count', default=0, help='Increase verbosity, default at SUCCESS')
     parser.add_argument('-V', '--version', action='version', version=f'%(prog)s {VERSION}')

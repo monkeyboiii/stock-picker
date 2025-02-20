@@ -19,7 +19,6 @@ from sqlalchemy.orm import mapped_column, relationship
 from sqlalchemy.types import Enum as SQLAlchemyEnum
 from sqlalchemy.inspection import inspect
 
-from app.db.engine import engine_from_env
 from app.constant.collection import CollectionType
 
 
@@ -163,25 +162,26 @@ class FeedDaily(MetadataBase):
     
     # convenient
     name:                       Mapped[str]         = mapped_column(String)
-    volume:                     Mapped[BigInteger]  = mapped_column(BigInteger)
+    collection_name:            Mapped[BigInteger]  = mapped_column(String, nullable=True)
+    collection_performance:     Mapped[Float]       = mapped_column(Float, nullable=True)
     close:                      Mapped[Numeric]     = mapped_column(Numeric(10, 3))
-
+    previous_close:             Mapped[Numeric]     = mapped_column(Numeric(10, 3))
+    
     # derived
     gain:                       Mapped[Float]       = mapped_column(Float)
-    previous_close:             Mapped[Numeric]     = mapped_column(Numeric(10, 3))
-    previous_volume:            Mapped[BigInteger]  = mapped_column(BigInteger)
-    ma_5_volume:                Mapped[BigInteger]  = mapped_column(BigInteger)
-
-    # backtest
-    # TODO add backtest columns
+    
+    # fill later
+    next_open:                  Mapped[Numeric]     = mapped_column(Numeric(10, 3), nullable=True)
+    next_close:                 Mapped[Numeric]     = mapped_column(Numeric(10, 3), nullable=True)
 
     def to_dict(self):
         return {c.key: getattr(self, c.key) for c in self.__table__.columns}
 
 
-# TODO MATERIALIZED VIEW
-
-
 if __name__ == "__main__":
-    MetadataBase.metadata.create_all(engine_from_env(echo=True))
-    # MetadataBase.metadata.tables['stock_daily_filtered'].create(engine_from_env())
+    from app.db.engine import *
+
+    # MetadataBase.metadata.create_all(engine_from_env(echo=True))
+    MetadataBase.metadata.tables['feed_daily'].create(engine_from_env(echo=True))
+
+    # MetadataBase.metadata.create_all(engine_mock(echo=True))
