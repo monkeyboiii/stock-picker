@@ -6,6 +6,7 @@ from sqlalchemy.schema import CreateTable, DropTable
 
 from app.constant.confirm import confirms_execution
 from app.db.engine import engine_from_env
+from app.db.materialized_view import init_db_mv
 from app.db.models import MetadataBase
 from app.profile.tracer import trace_elapsed
 
@@ -37,6 +38,8 @@ def reset_db_content(
         # CREATE TABLE :name IF NOT EXISTS
         logger.info(f'Creating {len(MetadataBase.metadata.tables.keys())} tables in {engine.url.database} at {engine.url.host}')
         MetadataBase.metadata.create_all(engine)
+
+        init_db_mv(engine)
 
 
 def reset_table_content(

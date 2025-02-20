@@ -10,6 +10,7 @@ from loguru import logger
 
 from app.constant.confirm import confirms_execution
 from app.db.engine import engine_from_env
+from app.db.models import FeedDaily
 from app.filter.tail_scraper import filter_desired
 from app.profile.tracer import trace_elapsed
 
@@ -64,6 +65,7 @@ def add_df_to_new_sheet(trade_day: date, df: DataFrame) -> None:
 if __name__ == "__main__":
     from app.constant.schedule import previous_trade_day
     
-    trade_day = previous_trade_day(date(2025, 2, 9))
+    trade_day = previous_trade_day(date(2025, 2, 20))
     df = filter_desired(engine_from_env(), trade_day, dryrun=True)
+    df = FeedDaily.convert_to_feed(df)
     add_df_to_new_sheet(trade_day, df)

@@ -122,7 +122,7 @@ def calculate_ma250_materialized_view(engine: Engine, trade_day: Optional[date] 
 if __name__ == '__main__':
     from app.constant.schedule import previous_trade_day
 
-    trade_day = previous_trade_day(date(2025, 2, 17))
+    trade_day = previous_trade_day(date(2025, 2, 20))
     calculate_ma250(
         engine_from_env(), 
         trade_day, 

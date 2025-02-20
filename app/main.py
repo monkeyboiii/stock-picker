@@ -75,6 +75,7 @@ def build_parser():
     subparser_run.add_argument('--date', default=date.today().isoformat(), help='The trade day to run the stock picker for')
     subparser_run.add_argument('-l', '--load', nargs='?', default='all', help='To load market/stock/collection/all (semi-)static data')
     subparser_run.add_argument('-d', '--dryrun', action='store_true', default=False , help='Show task run results without committing, only applies to update/filter tasks')
+    subparser_run.add_argument('-s', '--skip', action='store_true', default=False , help='Skip autof fill history, if you are confident they are correct')
     subparser_run.add_argument('-t', '--task', default='all', help='The trade task to run the stock picker for')
 
     #
@@ -173,7 +174,7 @@ def main():
                         case _:
                             logger.error(f"Unrecoginized load target {args.load}")
                 case "ingest":
-                    auto_fill(engine, trade_day)
+                    auto_fill(engine, trade_day, skip_hist_fill=args.skip)
                 case "update":
                     calculate_ma250(engine, trade_day, dryrun=dryrun)
                 case "filter":
@@ -190,7 +191,7 @@ def main():
 
                 case 'all':
                     # assumes load is ready
-                    auto_fill(engine, trade_day)
+                    auto_fill(engine, trade_day, skip_hist_fill=args.skip)
                     calculate_ma250(engine, trade_day)
                     df = filter_desired(engine, trade_day, dryrun=dryrun)
                     add_df_to_new_sheet(trade_day, df)

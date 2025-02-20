@@ -15,7 +15,7 @@ WITH static_filtering AS
         JOIN stock s ON sd.code = s.code
         WHERE
                 -- T0
-                sd.trade_day = '2025-02-10' AND
+                sd.trade_day = '2025-02-20' AND
 
                 -- T2
                 sd.quantity_relative_ratio >= 1 AND
@@ -87,7 +87,7 @@ LEFT JOIN LATERAL
                 LIMIT 1
        ) AS vol_prev_day
        FROM stock_daily
-       WHERE code = sf.code AND trade_day = '2025-02-10'
+       WHERE code = sf.code AND trade_day = '2025-02-20'
 ) vol_prev ON true
 
 -- T1
@@ -109,16 +109,18 @@ SELECT
         sd.trade_day,
         sd.code,
         s.name,
-        c.name                                                                  AS industry,
-        cd.change_rate || '%'                                                   AS industry_performance,
-        ROUND(prev.ma250 + (sd.close - prev.prev_250_close) / 250, 3)           AS ma_250,
+        c.name                                                                  AS collection_name,
+        cd.change_rate                                                          AS collection_performance,
+        -- ROUND(prev.ma250 + (sd.close - prev.prev_250_close) / 250, 3)           AS ma_250,
         prev.close                                                              AS previous_close,
-        sd.close                                                                AS now_close,
-        ROUND(100.0 * (sd.close / prev.close - 1), 3) || '%'                    AS gain,
-        ROUND(prev.ma5_volume + (sd.volume - prev.prev_5_volume) / 5)           AS ma5_volume,
-        prev.volume                                                             AS prev_volume,
-        sd.volume                                                               AS now_volume,
-        ROUND(100.0 * ((1.0 * sd.volume) / (1.0 * prev.volume) - 1), 3) || '%'  AS volume_gain
+        sd.close                                                                AS close,
+        100.0 * (sd.close / prev.close - 1)                                     AS gain,
+        -- ROUND(100.0 * (sd.close / prev.close - 1), 3) || '%'                    AS gain,
+        -- ROUND(prev.ma5_volume + (sd.volume - prev.prev_5_volume) / 5)           AS ma5_volume,
+        prev.volume                                                             AS previous_volume,
+        sd.volume                                                               AS volume,
+        -- ROUND(100.0 * ((1.0 * sd.volume) / (1.0 * prev.volume) - 1), 3) || '%'  AS volume_gain
+        100.0 * ((1.0 * sd.volume) / (1.0 * prev.volume) - 1)                   AS volume_gain
 FROM mv_stock_daily             prev
 JOIN stock_daily                sd      ON prev.code = sd.code
 JOIN stock                      s       ON sd.code = s.code
@@ -127,7 +129,7 @@ JOIN collection                 c       ON c.code = rcs.collection_code
 JOIN collection_daily           cd      ON c.code = cd.code AND sd.trade_day = cd.trade_day 
 WHERE 
         -- T0
-        sd.trade_day = '2025-02-10' AND
+        sd.trade_day = '2025-02-20' AND
 
         -- T1
         ROUND(100.0 * (sd.close / prev.close - 1), 3) BETWEEN 3 AND 5 AND

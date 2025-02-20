@@ -1,5 +1,6 @@
-from typing import List
+from typing import List, Optional
 
+from pandas import DataFrame
 from sqlalchemy import (
     Integer,
     String,
@@ -162,13 +163,16 @@ class FeedDaily(MetadataBase):
     
     # convenient
     name:                       Mapped[str]         = mapped_column(String)
-    collection_name:            Mapped[BigInteger]  = mapped_column(String, nullable=True)
+    collection_name:            Mapped[String]      = mapped_column(String, nullable=True)
     collection_performance:     Mapped[Float]       = mapped_column(Float, nullable=True)
-    close:                      Mapped[Numeric]     = mapped_column(Numeric(10, 3))
     previous_close:             Mapped[Numeric]     = mapped_column(Numeric(10, 3))
+    close:                      Mapped[Numeric]     = mapped_column(Numeric(10, 3))
+    previous_volume:            Mapped[BigInteger]  = mapped_column(BigInteger)
+    volume:                     Mapped[BigInteger]  = mapped_column(BigInteger)
     
     # derived
     gain:                       Mapped[Float]       = mapped_column(Float)
+    volume_gain:                Mapped[Float]       = mapped_column(Float)
     
     # fill later
     next_open:                  Mapped[Numeric]     = mapped_column(Numeric(10, 3), nullable=True)
@@ -176,6 +180,32 @@ class FeedDaily(MetadataBase):
 
     def to_dict(self):
         return {c.key: getattr(self, c.key) for c in self.__table__.columns}
+    
+    @classmethod
+    def convert_to_feed(cls, df: DataFrame, next_: Optional[bool] = False) -> DataFrame:
+        column_mapping = {
+            'trade_day': '交易日',
+            'code': '股票代码',
+            'name': '股票名称',
+            'collection_name': '板块名称',
+            'collection_performance': '板块表现',
+            'previous_close': '昨日收盘价',
+            'close': '现价',
+            'gain': '涨幅',
+            'previous_volume': '昨日交易量',
+            'volume_gain': '量涨幅',
+            'volume': '今日交易量',
+        }
+        transformations = {
+            'collection_performance':   lambda x: format(x, '.2f') + '%',
+            'gain':                     lambda x: format(x, '.3f') + '%',
+            'volume_gain':              lambda x: format(x, '.3f') + '%',
+        }
+
+        for col, func in transformations.items():
+            df[col] = df[col].apply(func)
+        
+        return df.rename(columns=column_mapping)[list(column_mapping.values())]
 
 
 if __name__ == "__main__":

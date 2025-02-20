@@ -166,7 +166,7 @@ def daily_recreate_mv(engine: Engine, trade_day: Optional[date] = None) -> None:
 def check_mv_exists(engine: Engine, mv_name: Optional[str] = MV_STOCK_DAILY) -> bool:
     with Session(engine) as session:
         result = session.execute(text(CHECK_MV_EXISTS_SQL), {'mv_name': mv_name})
-        return result.scalar()
+        return bool(result.scalar())
 
 
 if __name__ == '__main__':
@@ -178,5 +178,5 @@ if __name__ == '__main__':
     
     if not check_mv_exists(engine):
         init_db_mv(engine)
-    daily_recreate_mv(engine, trade_day=date(2025, 2, 7))
+    daily_recreate_mv(engine, trade_day=date(2025, 2, 19))
     assert check_mv_exists(engine)
