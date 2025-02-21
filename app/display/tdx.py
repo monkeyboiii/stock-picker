@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 from app.constant.exchange import *
 from app.constant.schedule import previous_trade_day
 from app.db.models import FeedDaily, Market, Stock
-from app.filter.tail_scraper import filter_desired
 
 
 load_dotenv(override=True)
@@ -56,12 +55,13 @@ def add_to_tdx_path(engine: Engine, df: Optional[DataFrame] = None, trade_day: O
             lambda x: prefix_market_number(x['code'], x['name_short']), axis=1
         )
         df = df[['code', 'name']]
-        df.to_csv(Path.joinpath(TDX_PATH, f"选股-{trade_day}.csv"), index=False, header=False)
+        df.to_csv(Path.joinpath(TDX_PATH, f"tdx-stock-{trade_day}.blk"), index=False, header=False)
 
 
 
 if __name__ == '__main__':
     from app.db.engine import engine_from_env
+    from app.filter.tail_scraper import filter_desired
 
     engine = engine_from_env()
     trade_day = date(2025, 2, 20)

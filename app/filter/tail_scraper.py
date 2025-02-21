@@ -189,7 +189,7 @@ def build_stmt_postgresql_mv(mv_stock_daily: Table, trade_day: date) -> Select:
             sd.c.close > sd.c.open,
         )
         # TX
-        .order_by(func.round(100.0 * (sd.c.close / prev.c.close - 1), 3).desc())  
+        .order_by((sd.c.close / prev.c.close).desc())  
     )
 
     return stmt
@@ -260,7 +260,9 @@ def filter_desired(engine: Engine, trade_day: Optional[date] = None, dryrun: Opt
                 for fd in output:
                     session.merge(fd)
             session.commit()
-        logger.info(f"Found {len(output)} matching records.")
+            logger.success(f"A total {len(output)} of matching records committed")
+
+        logger.info(f"Found {len(output)} matching records")
     
     return df
 

@@ -21,6 +21,7 @@ from sqlalchemy.types import Enum as SQLAlchemyEnum
 from sqlalchemy.inspection import inspect
 
 from app.constant.collection import CollectionType
+from app.display.utils import ten_thousand_format
 
 
 class MetadataBase(DeclarativeBase):
@@ -182,36 +183,82 @@ class FeedDaily(MetadataBase):
         return {c.key: getattr(self, c.key) for c in self.__table__.columns}
     
     @classmethod
-    def convert_to_feed(cls, df: DataFrame, next_: Optional[bool] = False) -> DataFrame:
+    def feed_column_mapping(cls) -> dict:
         column_mapping = {
-            'trade_day': '交易日',
-            'code': '股票代码',
-            'name': '股票名称',
-            'collection_name': '板块名称',
-            'collection_performance': '板块表现',
-            'previous_close': '昨日收盘价',
-            'close': '现价',
-            'gain': '涨幅',
-            'previous_volume': '昨日交易量',
-            'volume_gain': '量涨幅',
-            'volume': '今日交易量',
+            'trade_day':                '交易日',
+            'code':                     '股票代码',
+            'name':                     '股票名称',
+            'collection_name':          '板块名称',
+            'collection_performance':   '板块表现',
+            'previous_close':           '昨日收盘价',
+            'close':                    '现价',
+            'gain':                     '涨幅',
+            'previous_volume':          '昨日成交量',
+            'volume':                   '今日成交量',
+            'volume_gain':              '量涨幅',
         }
+        return column_mapping
+    
+    @classmethod
+    def convert_to_feed(cls, df: DataFrame) -> DataFrame:
+        column_mapping = FeedDaily.feed_column_mapping()
         transformations = {
             'collection_performance':   lambda x: format(x, '.2f') + '%',
-            'gain':                     lambda x: format(x, '.3f') + '%',
-            'volume_gain':              lambda x: format(x, '.3f') + '%',
+            'gain':                     lambda x: format(x, '.2f') + '%',
+            'previous_close':           lambda x: format(x, '.2f'),
+            'close':                    lambda x: format(x, '.2f'),
+            'previous_volume':          lambda x: ten_thousand_format(x),
+            'volume':                   lambda x: ten_thousand_format(x),
+            'volume_gain':              lambda x: format(x, '.2f') + '%',
         }
 
         for col, func in transformations.items():
             df[col] = df[col].apply(func)
         
         return df.rename(columns=column_mapping)[list(column_mapping.values())]
+    
+    @classmethod
+    def right_align_columns(cls) -> List[int]:
+        columns = [
+            'collection_performance',
+            'previous_close',
+            'close',
+            'gain',
+            'previous_volume',
+            'volume',
+            'volume_gain',
+            # '板块表现',
+            # '昨日收盘价',
+            # '现价',
+            # '涨幅',
+            # '昨日成交量',
+            # '今日成交量',
+            # '量涨幅',
+        ]
+        # return [df.columns.get_loc(col) for col in columns] # type: ignore
+        return columns
+    
+    @classmethod
+    def colorize_columns(cls) -> List[str]:
+        columns = [
+            'collection_performance',
+            'gain',
+            'volume_gain',
+            # '板块表现',
+            # '涨幅',
+            # '量涨幅',
+        ]
+        # return [df.columns.get_loc(col) for col in columns] # type: ignore
+        return columns
 
 
 if __name__ == "__main__":
     from app.db.engine import *
+    
+    engine = engine_from_env(echo=True)
 
-    # MetadataBase.metadata.create_all(engine_from_env(echo=True))
-    MetadataBase.metadata.tables['feed_daily'].create(engine_from_env(echo=True))
+    # MetadataBase.metadata.create_all(engine)
+    MetadataBase.metadata.tables['feed_daily'].drop(engine)
+    MetadataBase.metadata.tables['feed_daily'].create(engine)
 
     # MetadataBase.metadata.create_all(engine_mock(echo=True))

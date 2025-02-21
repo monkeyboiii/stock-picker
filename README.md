@@ -84,8 +84,10 @@ python app/main.py reset
 
 ## TODOs
 
-- backtests
-- get state of database
-- redesign FeedDaily
-- google sheet update 
-- real time data from 2:30 to 3:00 (akshare/openD)
+- [x] redesign FeedDaily
+- [] backtests
+- [] get state of database
+- [] later insert of ma250 from materialized view
+- [] google sheet update 
+- [] real time data from 2:30 to 3:00 (akshare/openD)
+- [] async engine

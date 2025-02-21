@@ -33,6 +33,9 @@ from app.constant.version import VERSION
 from app.constant.schedule import previous_trade_day
 from app.db.engine import engine_from_env
 from app.db.load import *
+from app.db.materialized_view import MV_STOCK_DAILY, check_mv_exists
+from app.db.models import FeedDaily
+from app.display.tdx import add_to_tdx_path
 from app.display.google_sheet import add_df_to_new_sheet
 from app.filter.tail_scraper import filter_desired
 from app.utils.ingest import auto_fill
@@ -77,6 +80,7 @@ def build_parser():
     subparser_run.add_argument('-d', '--dryrun', action='store_true', default=False , help='Show task run results without committing, only applies to update/filter tasks')
     subparser_run.add_argument('-s', '--skip', action='store_true', default=False , help='Skip autof fill history, if you are confident they are correct')
     subparser_run.add_argument('-t', '--task', default='all', help='The trade task to run the stock picker for')
+    subparser_run.add_argument('-y', '--yes', action='store_true', default=False , help='Say yes to confirms')
 
     #
     # reset tables
@@ -158,6 +162,7 @@ def main():
             dryrun = args.dryrun
 
             match task:
+                ############################
                 case "load":
                     match args.load:
                         case "market":
@@ -173,29 +178,81 @@ def main():
                             load_by_level(engine=engine, level=3)
                         case _:
                             logger.error(f"Unrecoginized load target {args.load}")
+                
+                ############################
                 case "ingest":
-                    auto_fill(engine, trade_day, skip_hist_fill=args.skip)
+                    auto_fill(
+                        engine=engine, 
+                        up_to_date=trade_day, 
+                        skip_hist_fill=args.skip, 
+                        yes=args.yes
+                    )
+
+                ############################
                 case "update":
-                    calculate_ma250(engine, trade_day, dryrun=dryrun)
+                    calculate_ma250(
+                        engine=engine, 
+                        trade_day=trade_day, 
+                        dryrun=dryrun
+                    )
+
+                ############################
                 case "filter":
-                    df = filter_desired(engine, trade_day, dryrun=dryrun)
+                    df = filter_desired(
+                        engine=engine, 
+                        trade_day=trade_day, 
+                        dryrun=dryrun
+                    )
                     if dryrun:
                         if not os.path.exists('reports'):
                             os.makedirs('reports')
                         df.to_csv(f'reports/report-{trade_day}.csv')
                         df.to_excel(f'reports/report-{trade_day}.xlsx')
 
+                ############################
                 case "display":
-                    df = filter_desired(engine, trade_day, dryrun=dryrun)
-                    add_df_to_new_sheet(trade_day, df)
+                    df = filter_desired(
+                        engine=engine, 
+                        trade_day=trade_day, 
+                        dryrun=dryrun
+                    )
+                    add_to_tdx_path(
+                        engine=engine,
+                        df=df,
+                        trade_day=trade_day,
+                    )
+                    add_df_to_new_sheet(
+                        trade_day=trade_day, 
+                        df=FeedDaily.convert_to_feed(df),
+                        yes=args.yes
+                    )
 
+                ############################
                 case 'all':
                     # assumes load is ready
-                    auto_fill(engine, trade_day, skip_hist_fill=args.skip)
-                    calculate_ma250(engine, trade_day)
-                    df = filter_desired(engine, trade_day, dryrun=dryrun)
-                    add_df_to_new_sheet(trade_day, df)
+                    auto_fill(
+                        engine=engine, 
+                        up_to_date=trade_day, 
+                        skip_hist_fill=args.skip, 
+                        yes=args.yes
+                    )
+                    if not check_mv_exists(engine, MV_STOCK_DAILY):
+                        calculate_ma250(
+                            engine=engine, 
+                            trade_day=trade_day
+                        )
+                    df = filter_desired(
+                        engine=engine, 
+                        trade_day=trade_day, 
+                        dryrun=dryrun
+                    )
+                    add_df_to_new_sheet(
+                        trade_day=trade_day, 
+                        df=df, 
+                        yes=args.yes
+                    )
 
+                ############################
                 case _:
                     logger.error(f"Unknown task: {task}")
 

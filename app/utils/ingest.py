@@ -13,12 +13,17 @@ from app.constant.confirm import confirms_execution
 from app.db.engine import engine_from_env
 from app.db.models import Stock, StockDaily
 from app.db.ingest import load_individual_stock_daily_hist, refresh_stock_daily, refresh_collection_daily
-from app.db.materialized_view import daily_recreate_mv
+from app.db.materialized_view import MV_STOCK_DAILY, check_mv_exists, daily_recreate_mv
 from app.profile.tracer import trace_elapsed
 
 
 @trace_elapsed(unit='s')
-def auto_fill(engine: Engine, up_to_date: Optional[date] = None, skip_hist_fill: Optional[bool] = False) -> None:
+def auto_fill(
+    engine: Engine, 
+    up_to_date: Optional[date] = None, 
+    skip_hist_fill: Optional[bool] = False, 
+    yes: Optional[bool] = False
+) -> None:
     '''
     Auto fill history data up to a specific date for all stocks.
     '''
@@ -27,9 +32,11 @@ def auto_fill(engine: Engine, up_to_date: Optional[date] = None, skip_hist_fill:
         up_to_date = date.today()
 
     up_to_date = previous_trade_day(up_to_date, inclusive=True)
-    logger.info(f"Auto fill history data up to {up_to_date.isoformat()}")
 
-    confirms_execution()
+    confirms_execution(
+        action=f'Auto fill history data up to {up_to_date.isoformat()}',
+        yes=yes,
+    )
 
     with Session(engine) as session:
 
@@ -81,7 +88,9 @@ def auto_fill(engine: Engine, up_to_date: Optional[date] = None, skip_hist_fill:
         refresh_collection_daily(engine, CollectionType.INDUSTRY_BOARD, up_to_date)
 
         # materialized view
-        daily_recreate_mv(engine, previous_trade_day(up_to_date, inclusive=False))
+        # TODO create daily mvs instead of dropping and recreating
+        if check_mv_exists(engine, MV_STOCK_DAILY):
+            daily_recreate_mv(engine, previous_trade_day(up_to_date, inclusive=False))
 
         logger.success(f"Auto fill history data & materialized view completed")
 

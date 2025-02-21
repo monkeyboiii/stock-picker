@@ -25,7 +25,7 @@ JOIN LATERAL
         SELECT 
         (
                 -- ma250_expr
-                SELECT AVG(ma250_innermost.close)
+                SELECT AVG(close)
                 FROM 
                 (
                         -- ma250_innermost
@@ -38,7 +38,7 @@ JOIN LATERAL
                 ) AS ma250_innermost
         ) AS ma250,
         (
-                SELECT COUNT(ma250_innermost.close)
+                SELECT COUNT(close)
                 FROM 
                 (
                         -- ma250_innermost
@@ -78,7 +78,7 @@ JOIN LATERAL
         SELECT 
         (
                 -- vol_ma5_expr
-                SELECT AVG(volume_ma5_innermost.volume)
+                SELECT AVG(volume)
                 FROM 
                 (
                         -- volume_ma5_innermost
