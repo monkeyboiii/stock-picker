@@ -15,11 +15,11 @@ def confirms_execution(
         logger.critical(action)
     
     if defaultYes:
-        user_input = input(f'🚨 Are you sure to continue? ([y]/n): ')
-        confirmed =  user_input.lower() == 'y' or user_input == ''
+        user_input = input('🚨 Are you sure to continue? ([y]/n): ')
+        confirmed  = user_input.lower() == 'y' or user_input == ''
     else:
-        user_input = input(f'🚨 Are you sure to continue? (y/[n]): ')
-        confirmed = user_input.lower() == 'y'
+        user_input = input('🚨 Are you sure to continue? (y/[n]): ')
+        confirmed  = user_input.lower() == 'y'
 
     if confirmed:
         logger.info("You confirmed the operation")

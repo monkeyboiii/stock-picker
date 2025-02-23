@@ -4,7 +4,7 @@ Ingesting is for dynamic data like stock daily/collection daily
 
 from time import sleep
 from datetime import date, timedelta
-from typing import Optional, Dict, Set
+from typing import Optional, Dict
 
 from pandas import isna
 from loguru import logger

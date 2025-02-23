@@ -1,9 +1,8 @@
-from decimal import Decimal
 import re
 from math import log10
 from typing import Optional
 
-from pandas import DataFrame, Series
+from pandas import Series
 from gspread_formatting import Color # type: ignore
 
 

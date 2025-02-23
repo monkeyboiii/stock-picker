@@ -1,7 +1,5 @@
 --
--- optimized
 -- for dbms that support lateral
--- TODO: debug
 WITH static_filtering AS 
 (
         -- static_filtering_cte
@@ -12,8 +10,8 @@ WITH static_filtering AS
                 sd.close,
                 sd.volume,
                 sd.ma_250
-        FROM stock_daily sd
-        JOIN stock s ON sd.code = s.code
+        FROM stock s
+        JOIN stock_daily sd ON s.code = sd.code
         WHERE
                 -- T0
                 sd.trade_day = '2025-02-21' AND
@@ -67,7 +65,7 @@ JOIN LATERAL
         -- prev_volume_subq
         SELECT 
        (
-                -- prev_volume_avg
+                -- prev_volume_avg_expr
                 SELECT AVG(volume)
                 FROM 
                 (
@@ -105,12 +103,11 @@ AND     prev_volume.ma5_volume < sf.volume
 AND     prev_volume.ma5_volume > prev_volume.volume
 
 -- Tx
-ORDER BY gain DESC;
+ORDER BY collection_performance DESC;
 
 
 
 --
--- simpler
 -- for dbms that supports materialized view
 SELECT 
         sd.code                                                                 AS code,
@@ -162,5 +159,5 @@ WHERE
         sd.close > sd.open
 
 -- TX
-ORDER BY gain DESC;
+ORDER BY collection_performance DESC;
 

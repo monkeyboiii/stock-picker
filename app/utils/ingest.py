@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, timedelta
 from typing import Optional
 
 from loguru import logger
@@ -92,7 +92,7 @@ def auto_fill(
         if check_mv_exists(engine, MV_STOCK_DAILY):
             daily_recreate_mv(engine, previous_trade_day(up_to_date, inclusive=False))
 
-        logger.success(f"Auto fill history data & materialized view completed")
+        logger.success("Auto fill history data & materialized view completed")
 
 
 

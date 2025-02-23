@@ -24,105 +24,127 @@ def build_stmt_postgresql_lateral(trade_day: date) -> Select:
     Based on T1~8 conditions.
     '''
 
+    sd = StockDaily.__table__.alias("sd")
+    s = Stock.__table__.alias("s")
+    rcs = RelationCollectionStock.__table__.alias("rcs")
+    c = Collection.__table__.alias("c")
+    cd = CollectionDaily.__table__.alias("cd")
+
+    collection_performance = cd.c.change_rate.label('collection_performance'),
+
     static_filtering_cte = (
-        select(Stock, StockDaily)
-            .select_from(Stock).join(StockDaily, Stock.code == StockDaily.code)
+        select(
+            sd.trade_day,
+            s.code,
+            s.name,
+            sd.close,
+            sd.volume,
+            sd.ma_250,
+        )
+            .select_from(s).join(sd, s.code == sd.code)
             .where(and_(
-                StockDaily.trade_day == trade_day,
+                sd.trade_day == trade_day,
 
                 # T2
-                StockDaily.quantity_relative_ratio >= 1,
+                sd.quantity_relative_ratio >= 1.0,
 
                 # T3
-                StockDaily.turnover_rate > 5.0, # scaled
+                sd.turnover_rate > 5.0, # scaled
 
                 # T4
-                StockDaily.circulation_capital.between(2_0000_0000, 200_0000_0000),
+                sd.circulation_capital.between(2_0000_0000, 200_0000_0000),
 
                 # T6
-                Stock.name.not_ilike('%ST%'),
-                Stock.name.not_like('%*%'),
+                s.name.not_ilike('%ST%'),
+                s.name.not_like('%*%'),
 
                 # T7
-                StockDaily.low > StockDaily.ma_250,
+                sd.low > sd.ma_250,
 
                 # T8
-                StockDaily.close > StockDaily.open,
+                sd.close > sd.open,
             ))
             .cte("static_filtering")
     )
 
     prev_subq = lateral(
-        select(StockDaily.close.label("close"))
+        select(sd.close)
         .where(
-            StockDaily.code == static_filtering_cte.c.code,
-            StockDaily.trade_day < static_filtering_cte.c.trade_day
+            sd.code == static_filtering_cte.c.code,
+            sd.trade_day < static_filtering_cte.c.trade_day
         )
-        .order_by(StockDaily.trade_day.desc())
+        .correlate(static_filtering_cte)
+        .order_by(sd.trade_day.desc())
         .limit(1)
     )
 
-    innermost = (
-        select(StockDaily.volume)
+    prev_volume_innermost = (
+        select(sd.volume)
             .where(and_(
-                StockDaily.code == static_filtering_cte.c.code,
-                StockDaily.trade_day <= static_filtering_cte.c.trade_day
+                sd.code == static_filtering_cte.c.code,
+                sd.trade_day <= static_filtering_cte.c.trade_day
             ))
-            .order_by(StockDaily.trade_day.desc())
+            .order_by(sd.trade_day.desc())
             .correlate(static_filtering_cte)
             .limit(5)
     ).subquery()
 
-    vol_ma5_expr = select(func.avg(innermost.c.volume)).scalar_subquery()
+    prev_volume_avg_expr = select(
+        func.avg(prev_volume_innermost.c.volume)
+    ).scalar_subquery()
 
-    vol_prev_day_expr = (
-        select(StockDaily.volume)
+    prev_volume_volume_expr = (
+        select(sd.volume)
             .where(
-                StockDaily.code == static_filtering_cte.c.code,
-                StockDaily.trade_day < static_filtering_cte.c.trade_day
+                sd.code == static_filtering_cte.c.code,
+                sd.trade_day < static_filtering_cte.c.trade_day
             )
-            .order_by(StockDaily.trade_day.desc())
+            .order_by(sd.trade_day.desc())
             .correlate(static_filtering_cte)
             .limit(1)
     ).scalar_subquery()
 
-    vol_prev_subq = lateral(
+    prev_volume_subq = lateral(
         select(
-            vol_ma5_expr.label("vol_ma5"),
-            vol_prev_day_expr.label("vol_prev_day")
+            prev_volume_avg_expr.label("ma5_volume"),
+            prev_volume_volume_expr.label("volume")
         )
         .where(
-            StockDaily.code == static_filtering_cte.c.code,
-            StockDaily.trade_day == trade_day
+            sd.code == static_filtering_cte.c.code,
+            sd.trade_day == trade_day
         )
+        .correlate(static_filtering_cte)
     )
 
     stmt = (
         select(
             static_filtering_cte.c.code,
             static_filtering_cte.c.name,
-            static_filtering_cte.c.trade_day,
+            c.c.name.label('collection_name'),
+            collection_performance,
             static_filtering_cte.c.close,
             prev_subq.c.close.label("previous_close"),
-            func.round(100.0 * (static_filtering_cte.c.close / prev_subq.c.close - 1), 3).label("gain"),
+            (100.0 * (static_filtering_cte.c.close / prev_subq.c.close - 1)).label("gain"),
+            prev_volume_subq.c.vol_prev_day.label("previous_volume"),
             static_filtering_cte.c.volume,
-            vol_prev_subq.c.vol_prev_day.label("previous_volume"),
-            func.round(vol_prev_subq.c.vol_ma5).label("ma_5_volume"),
         )
         .select_from(static_filtering_cte)
         .join(prev_subq, true())
-        .join(vol_prev_subq, true())
+        .join(prev_volume_subq, true())
+        .join(rcs, s.c.code == rcs.c.stock_code)
+        .join(c, c.c.code == rcs.c.collection_code)
+        .join(cd, (c.c.code == cd.c.code) & (sd.c.trade_day == cd.c.trade_day))
         .where(
             # T1
-            func.round(100.0 * (static_filtering_cte.c.close / prev_subq.c.close - 1), 3).between(3, 5),
+            (100.0 * (static_filtering_cte.c.close / prev_subq.c.close - 1)).between(3, 5),
             
             # T5
-            static_filtering_cte.c.volume > vol_prev_subq.c.vol_ma5,
-            vol_prev_subq.c.vol_prev_day  < vol_prev_subq.c.vol_ma5,
+            prev_volume_subq.c.ma5_volume < static_filtering_cte.c.volume,
+            prev_volume_subq.c.ma5_volume > prev_volume_subq.c.volume,
         )
 
         # Tx
-        .order_by(static_filtering_cte.c.code.desc())
+        .order_by(collection_performance)
     )
 
     return stmt
@@ -144,11 +166,11 @@ def build_stmt_postgresql_mv(mv_stock_daily: Table, trade_day: date) -> Select:
             s.c.name,
             c.c.name.label("collection_name"),
             cd.c.change_rate.label("collection_performance"),
-            # func.round(prev.c.ma250 + (sd.c.close - prev.c.prev_250_close) / 250, 3).label("ma_250"),
+            # (prev.c.ma250 + (sd.c.close - prev.c.prev_250_close) / 250).label("ma_250"),
             prev.c.close.label("previous_close"),
             sd.c.close.label("close"),
             (100 * (sd.c.close / prev.c.close - 1)).label("gain"),
-            # func.round(prev.c.ma5_volume + (sd.c.volume - prev.c.prev_5_volume) / 5).label("ma5_volume"),
+            # (prev.c.ma5_volume + (sd.c.volume - prev.c.prev_5_volume) / 5).label("ma5_volume"),
             prev.c.volume.label("previous_volume"),
             sd.c.volume.label("volume"),
             (100 * (sd.c.volume.cast(Double) / prev.c.volume.cast(Double) - 1)).label("volume_gain"),
@@ -189,11 +211,10 @@ def build_stmt_postgresql_mv(mv_stock_daily: Table, trade_day: date) -> Select:
             sd.c.close > sd.c.open,
         )
         # TX
-        .order_by((sd.c.close / prev.c.close).desc())  
+        .order_by(cd.c.change_rate.desc())
     )
 
     return stmt
-
 
 
 def build_stmt_postgresql(engine: Engine, trade_day: date) -> Select:
@@ -269,8 +290,13 @@ def filter_desired(engine: Engine, trade_day: Optional[date] = None, dryrun: Opt
 
 
 if __name__ == '__main__':
-    trade_day = date(2025, 2, 20)
-    df = filter_desired(engine_from_env(), trade_day, dryrun=False)
+    trade_day = date(2025, 2, 22)
+    df = filter_desired(
+        engine=engine_from_env(), 
+        trade_day=trade_day, 
+        dryrun=True
+    )
     df.to_csv(f'reports/report-{trade_day.isoformat()}.csv')
     # df.to_excel(f'report/report-{trade_day.isoformat()}.xlsx')
+
     print(df)

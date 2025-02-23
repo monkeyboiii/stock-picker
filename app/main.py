@@ -47,8 +47,8 @@ load_dotenv(override=True)
 
 
 def build_parser():
-    parser = argparse.ArgumentParser(      prog="stock-picker",
-                                           description='Setup database or run the stock picker',
+    parser = argparse.ArgumentParser(prog="stock-picker",
+                                    description='Setup database or run the stock picker',
     )
     parser.add_argument('-q', '--quiet', action='store_true', default=False, help='Supress any logs below SUCCESS, inclusive')
     parser.add_argument('-s', '--supress', action='store_true', default=False, help='Supress any logs below WARNING, inclusive')

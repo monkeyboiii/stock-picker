@@ -4,7 +4,7 @@
 SELECT 
        s.code,
        s.name,
-       ROUND(latest.ma250, 3) AS ma250 
+       latest.ma250 AS ma250
 FROM stock s
 JOIN stock_daily sd ON s.code = sd.code
 JOIN LATERAL 
@@ -17,7 +17,7 @@ JOIN LATERAL
                         SELECT close
                         FROM stock_daily 
                         WHERE code = s.code
-                        AND trade_day <= sd.trade_day
+                        AND trade_day <= '2025-02-21'
                         ORDER BY trade_day DESC 
                         LIMIT 250
                 ) AS innermost
@@ -30,20 +30,18 @@ JOIN LATERAL
                         SELECT close
                         FROM stock_daily
                         WHERE code = s.code
-                        AND trade_day <= sd.trade_day
+                        AND trade_day <= '2025-02-21'
                         ORDER BY trade_day DESC
-                        LIMIT 250
+                        LIMIT 2z50
                 ) AS innermost
        ) 
        AS row_count
        FROM stock_daily 
-       WHERE code = s.code AND trade_day = '2025-02-07'
+       WHERE code = s.code AND trade_day = '2025-02-21'
 ) AS latest ON true
 WHERE 
-        sd.trade_day = '2025-02-07' AND
-        latest.row_count = 250 
-ORDER BY
-        s.code;
+        sd.trade_day = '2025-02-21' AND
+        latest.row_count = 250;
 
 
 --

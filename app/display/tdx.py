@@ -61,7 +61,6 @@ def add_to_tdx_path(engine: Engine, df: Optional[DataFrame] = None, trade_day: O
 
 if __name__ == '__main__':
     from app.db.engine import engine_from_env
-    from app.filter.tail_scraper import filter_desired
 
     engine = engine_from_env()
     trade_day = date(2025, 2, 20)
