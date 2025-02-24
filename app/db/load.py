@@ -13,9 +13,9 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from app.data.ak import pull_collections, pull_stocks, pull_stocks_in_collection
-from app.constant.exchange import *
-from app.constant.misc import *
-from app.constant.collection import *
+from app.constant.exchange import BAD_STOCKS, MARKET_SUPPORTED
+from app.constant.misc import TIME_SLEEP_SECS
+from app.constant.collection import CollectionType
 from app.db.engine import engine_from_env
 from app.db.models import Collection, Market, Stock
 from app.profile.tracer import trace_elapsed

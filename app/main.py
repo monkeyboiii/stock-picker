@@ -29,11 +29,18 @@ from datetime import date
 from loguru import logger
 from dotenv import load_dotenv
 
+from app.constant.exchange import MARKET_SUPPORTED
 from app.constant.version import VERSION
 from app.constant.schedule import previous_trade_day
 from app.db.engine import engine_from_env
-from app.db.load import *
-from app.db.materialized_view import MV_STOCK_DAILY, check_mv_exists
+from app.db.load import (
+    load_market, 
+    load_all_stocks, 
+    load_default_collections, 
+    load_collection_stock_relation,
+    load_by_level,
+)
+from app.db.materialized_view import check_mv_exists
 from app.db.models import FeedDaily
 from app.display.tdx import add_to_tdx_path
 from app.display.google_sheet import add_df_to_new_sheet
@@ -236,7 +243,7 @@ def main():
                         skip_hist_fill=args.skip, 
                         yes=args.yes
                     )
-                    if not check_mv_exists(engine, MV_STOCK_DAILY):
+                    if not check_mv_exists(engine, trade_day, previous=True):
                         calculate_ma250(
                             engine=engine, 
                             trade_day=trade_day

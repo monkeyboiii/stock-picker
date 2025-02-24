@@ -14,9 +14,9 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.constant.collection import CollectionType
-from app.constant.exchange import *
-from app.constant.misc import *
-from app.constant.schedule import *
+from app.constant.exchange import MARKET_SUPPORTED
+from app.constant.misc import TIME_SLEEP_SECS
+from app.constant.schedule import is_stock_market_open, previous_trade_day
 from app.data.ak import pull_collection_daily, pull_stock_daily, pull_stock_daily_hist
 from app.db.engine import engine_from_env
 from app.db.models import Collection, Market, Stock, StockDaily, CollectionDaily
@@ -101,7 +101,7 @@ def load_all_stock_daily_hist(
                 if start_date is None:
                     start_date = date(end_date.year - 2, end_date.month, end_date.day)
 
-                logger.info(f"Getting daily data for {stock.name} from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+                logger.debug(f"Getting daily data for {stock.name} from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
 
                 df = pull_stock_daily_hist(
                     symbol=stock.code,
@@ -127,7 +127,7 @@ def load_all_stock_daily_hist(
                 session.add_all(stock_objs)
                 session.commit()
 
-                logger.info(f"Total of {len(stock_objs)} daily data for {stock.name} committed")
+                logger.success(f"Total of {len(stock_objs)} daily data for {stock.name} committed")
                 # TODO async
                 sleep(TIME_SLEEP_SECS)
 
