@@ -105,7 +105,7 @@ def add_df_to_new_sheet(trade_day: date, df: DataFrame, yes: Optional[bool] = Fa
 if __name__ == "__main__":
     from app.constant.schedule import previous_trade_day
     
-    trade_day = previous_trade_day(date(2025, 2, 22))
+    trade_day = previous_trade_day(date(2025, 2, 24))
     df = filter_desired(engine_from_env(), trade_day, dryrun=True)
     add_df_to_new_sheet(
         trade_day=trade_day,

@@ -88,7 +88,7 @@ JOIN LATERAL
                 LIMIT 1
        ) AS volume
        FROM stock_daily
-       WHERE code = sf.code AND trade_day = '2025-02-21'
+       WHERE code = sf.code AND trade_day = sf.trade_day
 ) prev_volume ON true
 
 JOIN relation_collection_stock  rcs     ON sf.code = rcs.stock_code
