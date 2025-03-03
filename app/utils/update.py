@@ -8,8 +8,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql import lateral
 from sqlalchemy.engine import Engine
 
-from app.constant.misc import *
-from app.constant.exchange import *
 from app.constant.schedule import is_stock_market_open
 from app.db.engine import engine_from_env
 from app.db.models import Stock, StockDaily

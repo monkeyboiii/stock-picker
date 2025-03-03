@@ -212,8 +212,8 @@ class FeedDaily(MetadataBase):
             'volume_gain':              lambda x: format(x, '.2f') + '%',
         }
 
-        for col, func in transformations.items():
-            df[col] = df[col].apply(func)
+        for col, func_ in transformations.items():
+            df[col] = df[col].apply(func_)
         
         return df.rename(columns=column_mapping)[list(column_mapping.values())]
     
@@ -253,7 +253,7 @@ class FeedDaily(MetadataBase):
 
 
 if __name__ == "__main__":
-    from app.db.engine import *
+    from app.db.engine import engine_from_env
     
     engine = engine_from_env(echo=True)
 

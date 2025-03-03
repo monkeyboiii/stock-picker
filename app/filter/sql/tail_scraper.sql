@@ -14,7 +14,7 @@ WITH static_filtering AS
         JOIN stock_daily sd ON s.code = sd.code
         WHERE
                 -- T0
-                sd.trade_day = '2025-02-21' AND
+                sd.trade_day = '2025-03-03' AND
 
                 -- T2
                 sd.quantity_relative_ratio >= 1.0 AND
@@ -88,7 +88,7 @@ JOIN LATERAL
                 LIMIT 1
        ) AS volume
        FROM stock_daily
-       WHERE code = sf.code AND trade_day = '2025-02-21'
+       WHERE code = sf.code AND trade_day = sf.trade_day
 ) prev_volume ON true
 
 JOIN relation_collection_stock  rcs     ON sf.code = rcs.stock_code
@@ -122,7 +122,7 @@ SELECT
         prev.volume                                                             AS previous_volume,
         sd.volume                                                               AS volume,
         100.0 * ((1.0 * sd.volume) / (1.0 * prev.volume) - 1)                   AS volume_gain
-FROM mv_stock_daily             prev
+FROM mv_stock_daily_2025_02_28  prev
 JOIN stock_daily                sd      ON prev.code = sd.code
 JOIN stock                      s       ON sd.code = s.code
 JOIN relation_collection_stock  rcs     ON s.code = rcs.stock_code
@@ -130,7 +130,7 @@ JOIN collection                 c       ON c.code = rcs.collection_code
 JOIN collection_daily           cd      ON c.code = cd.code AND sd.trade_day = cd.trade_day 
 WHERE 
         -- T0
-        sd.trade_day = '2025-02-21' AND
+        sd.trade_day = '2025-03-03' AND
 
         -- T1
         100.0 * (sd.close / prev.close - 1) BETWEEN 3 AND 5 AND

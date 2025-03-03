@@ -9,7 +9,11 @@ from pandas import DataFrame
 from sqlalchemy import Engine, distinct, select
 from sqlalchemy.orm import Session
 
-from app.constant.exchange import *
+from app.constant.exchange import (
+    SEX_SHANGHAI,
+    SEX_SHENZHEN,
+    SEX_BEIJING,
+)
 from app.constant.schedule import previous_trade_day
 from app.db.models import FeedDaily, Market, Stock
 

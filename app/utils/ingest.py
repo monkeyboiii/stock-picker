@@ -7,13 +7,12 @@ from sqlalchemy.orm import Session
 from sqlalchemy.engine import Engine
 
 from app.constant.collection import CollectionType
-from app.constant.exchange import *
-from app.constant.schedule import *
+from app.constant.schedule import next_trade_day, previous_trade_day
 from app.constant.confirm import confirms_execution
 from app.db.engine import engine_from_env
 from app.db.models import Stock, StockDaily
 from app.db.ingest import load_individual_stock_daily_hist, refresh_stock_daily, refresh_collection_daily
-from app.db.materialized_view import MV_STOCK_DAILY, check_mv_exists, daily_recreate_mv
+from app.db.materialized_view import check_mv_exists, daily_recreate_mv
 from app.profile.tracer import trace_elapsed
 
 
@@ -88,11 +87,10 @@ def auto_fill(
         refresh_collection_daily(engine, CollectionType.INDUSTRY_BOARD, up_to_date)
 
         # materialized view
-        # TODO create daily mvs instead of dropping and recreating
-        if check_mv_exists(engine, MV_STOCK_DAILY):
-            daily_recreate_mv(engine, previous_trade_day(up_to_date, inclusive=False))
+        if not check_mv_exists(engine, up_to_date, previous=True):
+            _ = daily_recreate_mv(engine, up_to_date, previous=True)
 
-        logger.success("Auto fill history data & materialized view completed")
+        logger.success("Auto fill history data")
 
 
 
