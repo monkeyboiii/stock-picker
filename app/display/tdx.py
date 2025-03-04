@@ -40,6 +40,8 @@ def add_to_tdx_path(engine: Engine, df: Optional[DataFrame] = None, trade_day: O
     if trade_day is None:
         trade_day = previous_trade_day(date.today())
 
+    p = Path.joinpath(TDX_PATH, f"tdx-stock-{trade_day}.blk")
+
     with Session(engine) as session:
         if df is None:
             market_query = select(
@@ -59,8 +61,8 @@ def add_to_tdx_path(engine: Engine, df: Optional[DataFrame] = None, trade_day: O
             lambda x: prefix_market_number(x['code'], x['name_short']), axis=1
         )
         df = df[['code', 'name']]
-        df.to_csv(Path.joinpath(TDX_PATH, f"tdx-stock-{trade_day}.blk"), index=False, header=False)
-
+        df.to_csv(p, index=False, header=False)
+        logger.success(f"Tdx format file of {trade_day.isoformat()} wrote to {p}")
 
 
 if __name__ == '__main__':

@@ -1,3 +1,5 @@
+from __future__ import annotations
+from datetime import datetime
 from typing import List
 
 from pandas import DataFrame
@@ -174,13 +176,18 @@ class FeedDaily(MetadataBase):
     # derived
     gain:                       Mapped[Float]       = mapped_column(Float)
     volume_gain:                Mapped[Float]       = mapped_column(Float)
-    
-    # fill later
-    next_open:                  Mapped[Numeric]     = mapped_column(Numeric(10, 3), nullable=True)
-    next_close:                 Mapped[Numeric]     = mapped_column(Numeric(10, 3), nullable=True)
 
     def to_dict(self):
         return {c.key: getattr(self, c.key) for c in self.__table__.columns}
+
+    @classmethod
+    def to_dataframe(cls, fds: List[FeedDaily] = []) -> DataFrame:
+        df = DataFrame(
+            [fd.to_dict() for fd in fds],
+            columns=FeedDaily.__table__.columns.keys(),
+        )
+        df["last_updated"] = datetime.now()
+        return df
     
     @classmethod
     def feed_column_mapping(cls) -> dict:
@@ -254,10 +261,12 @@ class FeedDaily(MetadataBase):
 
 if __name__ == "__main__":
     from app.db.engine import engine_from_env
+    from app.constant.confirm import confirms_execution
     
     engine = engine_from_env(echo=True)
 
     # MetadataBase.metadata.create_all(engine)
+    confirms_execution("Table operations", defaultYes=False)
     MetadataBase.metadata.tables['feed_daily'].drop(engine)
     MetadataBase.metadata.tables['feed_daily'].create(engine)
 

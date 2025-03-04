@@ -214,15 +214,15 @@ def daily_recreate_mv(engine: Engine, trade_day: Optional[date] = None, previous
 
     with Session(engine) as session:
         result = session.execute(text(DAILY_RECREATE_MV_SQL.format(trade_day.isoformat())))
-        result = bool(result.scalar())
-        if result:
+        exists = bool(result.scalar())
+        if exists:
             session.commit()
             logger.success("Materialized view recreated successfully")
         else:
             session.rollback()
             logger.error("Materialized view not recreated")
 
-    return result
+    return exists
 
 
 @trace_elapsed()

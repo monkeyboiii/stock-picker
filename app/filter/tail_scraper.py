@@ -1,17 +1,14 @@
-from typing import Optional
-from datetime import date, datetime
+from typing import List, Optional
+from datetime import date
 
 from sqlalchemy import select, func, and_, true
 from sqlalchemy import Table, Select, Double
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import lateral
 from sqlalchemy.engine import Engine
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from loguru import logger
-from pandas import DataFrame
 
 from app.constant.schedule import previous_trade_day
-from app.db.engine import engine_from_env
 from app.db.materialized_view import get_mv_stock_daily_name, check_mv_exists
 from app.db.models import (
     MetadataBase,
@@ -245,12 +242,9 @@ def build_stmt_postgresql(engine: Engine, trade_day: date) -> Select:
         return build_stmt_postgresql_lateral(trade_day)
 
 
-@trace_elapsed(unit="s")
-def filter_desired(
-    engine: Engine, trade_day: Optional[date] = None, dryrun: Optional[bool] = False
-) -> DataFrame:
+@trace_elapsed()
+def filter_desired(engine: Engine, trade_day: Optional[date] = None) -> List[FeedDaily]:
     output = []
-    output_columns = FeedDaily.__table__.columns.keys()
 
     if trade_day is None:
         trade_day = previous_trade_day(date.today(), inclusive=True)
@@ -263,7 +257,6 @@ def filter_desired(
 
     with Session(engine) as session:
         results = session.execute(filter_stmt)
-
         for result in results:
             fd = FeedDaily(
                 filter_id=get_filter_id(StockFilter.TAIL_SCRAPER), 
@@ -271,44 +264,12 @@ def filter_desired(
             )
             output.append(fd)
 
-        if not results:
-            return DataFrame()
-
-        df = DataFrame([fd.to_dict() for fd in output], columns=output_columns)
-        df["last_updated"] = datetime.now()
-
-        if not dryrun:
-            if engine.dialect.name == "postgresql":
-                data = df.to_dict(orient="records")
-                insert_stmt = pg_insert(FeedDaily).values(data)
-                update_dict = {
-                    "name": insert_stmt.excluded.name,
-                    "collection_name": insert_stmt.excluded.collection_name,
-                    "collection_performance": insert_stmt.excluded.collection_performance,
-                    "previous_close": insert_stmt.excluded.previous_close,
-                    "close": insert_stmt.excluded.close,
-                    "gain": insert_stmt.excluded.gain,
-                    "previous_volume": insert_stmt.excluded.previous_volume,
-                    "volume": insert_stmt.excluded.volume,
-                    "volume_gain": insert_stmt.excluded.volume_gain,
-                }
-                insert_stmt = insert_stmt.on_conflict_do_update(
-                    index_elements=["code", "trade_day", "filter_id"],
-                    set_=update_dict,
-                )
-                session.execute(insert_stmt)
-            else:
-                for fd in output:
-                    session.merge(fd)
-            session.commit()
-            logger.success(f"A total {len(output)} of matching records committed")
-
-        logger.info(f"Found {len(output)} matching records")
-
-    return df
+    return output
 
 
 if __name__ == "__main__":
+    from app.db.engine import engine_from_env
+    
     trade_day = date(2025, 3, 3)
     df = filter_desired(engine=engine_from_env(), trade_day=trade_day, dryrun=True)
 

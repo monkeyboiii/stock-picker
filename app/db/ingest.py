@@ -16,10 +16,23 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from app.constant.collection import CollectionType
 from app.constant.exchange import MARKET_SUPPORTED
 from app.constant.misc import TIME_SLEEP_SECS
-from app.constant.schedule import is_stock_market_open, previous_trade_day
-from app.data.ak import pull_collection_daily, pull_stock_daily, pull_stock_daily_hist
+from app.constant.schedule import (
+    is_stock_market_open, 
+    previous_trade_day,
+)
+from app.data.ak import (
+    pull_collection_daily, 
+    pull_stock_daily, 
+    pull_stock_daily_hist,
+)
 from app.db.engine import engine_from_env
-from app.db.models import Collection, Market, Stock, StockDaily, CollectionDaily
+from app.db.models import (
+    Collection, 
+    Market, 
+    Stock, 
+    StockDaily, 
+    CollectionDaily,
+)
 
 
 def load_individual_stock_daily_hist(
@@ -45,10 +58,12 @@ def load_individual_stock_daily_hist(
             except KeyError:
                 logger.error(f'Got key error of stock code {code}, continuing...')
                 session.commit()
+                sleep(TIME_SLEEP_SECS)
                 continue
 
             if len(df) == 0:
                 logger.warning(f"No daily data for {code} from {start_day} to {end_date}")
+                sleep(TIME_SLEEP_SECS)
                 continue
 
             stock_objs = [
