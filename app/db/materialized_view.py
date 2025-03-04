@@ -156,7 +156,7 @@ $$ LANGUAGE plpgsql;
 """
 
 
-DAILY_RECREATE_MV_SQL = "SELECT create_mv_with_trade_day('{}');"
+DAILY_CREATE_MV_SQL = "SELECT create_mv_with_trade_day('{}');"
 
 
 CHECK_MV_EXISTS_SQL = """
@@ -205,22 +205,24 @@ def check_mv_procedure_exists(engine: Engine) -> bool:
 
 
 @trace_elapsed()
-def daily_recreate_mv(engine: Engine, trade_day: Optional[date] = None, previous = False) -> bool:
+def daily_create_mv(engine: Engine, trade_day: Optional[date] = None, previous = False) -> bool:
     if trade_day is None:
         trade_day = previous_trade_day(date.today(), inclusive=previous)
     elif previous:
         assert is_stock_market_open(trade_day), f"Stock market closed on {trade_day.isoformat()}"
         trade_day = previous_trade_day(trade_day, inclusive=False)
 
+    mv_name = get_mv_stock_daily_name(trade_day, previous=False)
+
     with Session(engine) as session:
-        result = session.execute(text(DAILY_RECREATE_MV_SQL.format(trade_day.isoformat())))
+        result = session.execute(text(DAILY_CREATE_MV_SQL.format(trade_day.isoformat())))
         exists = bool(result.scalar())
         if exists:
             session.commit()
-            logger.success("Materialized view recreated successfully")
+            logger.success(f"Materialized view {mv_name} (re)created successfully")
         else:
             session.rollback()
-            logger.error("Materialized view not recreated")
+            logger.error(f"Materialized view {mv_name} not recreated")
 
     return exists
 
@@ -254,4 +256,4 @@ if __name__ == '__main__':
     init_db_mv(engine)
     
     if not check_mv_exists(engine, trade_day, previous=True):
-        assert daily_recreate_mv(engine, trade_day, previous=True), 'Daily recreate failed'
+        assert daily_create_mv(engine, trade_day, previous=True), 'Daily recreate failed'

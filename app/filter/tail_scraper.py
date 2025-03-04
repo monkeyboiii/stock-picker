@@ -232,8 +232,8 @@ def build_stmt_postgresql_mv(mv_stock_daily: Table, trade_day: date) -> Select:
     return stmt
 
 
-def build_stmt_postgresql(engine: Engine, trade_day: date) -> Select:
-    if check_mv_exists(engine, trade_day, previous=True):
+def build_stmt_postgresql(engine: Engine, trade_day: date, materialized: Optional[bool] = True) -> Select:
+    if materialized and check_mv_exists(engine, trade_day, previous=True):
         mv_stock_daily = Table(get_mv_stock_daily_name(), MetadataBase.metadata, autoload_with=engine)
         logger.debug("Filter using materialized view")
         return build_stmt_postgresql_mv(mv_stock_daily, trade_day)
@@ -243,14 +243,14 @@ def build_stmt_postgresql(engine: Engine, trade_day: date) -> Select:
 
 
 @trace_elapsed()
-def filter_desired(engine: Engine, trade_day: Optional[date] = None) -> List[FeedDaily]:
+def filter_desired(engine: Engine, trade_day: Optional[date] = None, materialized: Optional[bool] = True) -> List[FeedDaily]:
     output = []
 
     if trade_day is None:
         trade_day = previous_trade_day(date.today(), inclusive=True)
 
     if engine.dialect.name == "postgresql":
-        filter_stmt = build_stmt_postgresql(engine, trade_day)
+        filter_stmt = build_stmt_postgresql(engine, trade_day, materialized=materialized)
         logger.debug(filter_stmt.compile(engine, compile_kwargs={"literal_binds": True}))
     else:
         raise Exception("Not implemented!")

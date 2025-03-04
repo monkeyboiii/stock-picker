@@ -44,7 +44,7 @@ from app.db.load import (
 from app.db.materialized_view import (
     check_mv_exists, 
     check_mv_procedure_exists,
-    daily_recreate_mv,
+    daily_create_mv,
 )
 from app.db.models import FeedDaily
 from app.display.tdx import add_to_tdx_path
@@ -205,13 +205,14 @@ def main():
                 case "update":
                     if args.materialized and check_mv_procedure_exists(engine):
                         if check_mv_exists(engine, trade_day, previous=True):
-                            daily_recreate_mv(engine=engine, trade_day=trade_day, previous=True)
+                            daily_create_mv(engine=engine, trade_day=trade_day, previous=True)
                         
                         # FIXME: change to market specific close time
                         now = datetime.now().time()
                         if now > time(15, 0) and not check_mv_exists(engine, trade_day, previous=False):
-                            _ = daily_recreate_mv(engine, trade_day, previous=False)
+                            _ = daily_create_mv(engine, trade_day, previous=False)
 
+                    # TODO: fill from mv
                     calculate_ma250(
                         engine=engine, 
                         trade_day=trade_day, 
@@ -223,6 +224,7 @@ def main():
                     fds = filter_desired(
                         engine=engine, 
                         trade_day=trade_day,
+                        materialized=args.materialized,
                     )
                     if not dryrun:
                         df = refresh_feed_daily_table(
@@ -231,6 +233,7 @@ def main():
                             trade_day=trade_day,
                         )
                     else:
+                        df = FeedDaily.to_dataframe(fds)
                         if not os.path.exists('reports'):
                             os.makedirs('reports')
                         df.to_csv(f'reports/report-{trade_day}.csv')
@@ -240,7 +243,8 @@ def main():
                 case "display":
                     fds = filter_desired(
                         engine=engine, 
-                        trade_day=trade_day
+                        trade_day=trade_day,
+                        materialized=args.materialized,
                     )
                     df = FeedDaily.to_dataframe(fds)
                     add_to_tdx_path(
@@ -270,12 +274,12 @@ def main():
                         if check_mv_exists(engine, trade_day, previous=True):
                             using_mv = True
                         else:
-                            using_mv = daily_recreate_mv(engine=engine, trade_day=trade_day, previous=True)
+                            using_mv = daily_create_mv(engine=engine, trade_day=trade_day, previous=True)
                             
-                            # FIXME: change to market specific close time
-                            now = datetime.now().time()
-                            if now > time(15, 0) and not check_mv_exists(engine, trade_day, previous=False):
-                                _ = daily_recreate_mv(engine, trade_day, previous=False)
+                        # FIXME: change to market specific close time
+                        now = datetime.now().time()
+                        if now > time(15, 0) and not check_mv_exists(engine, trade_day, previous=False):
+                            _ = daily_create_mv(engine, trade_day, previous=False)
                     if not using_mv:
                         calculate_ma250(
                             engine=engine, 
@@ -286,6 +290,7 @@ def main():
                     fds = filter_desired(
                         engine=engine, 
                         trade_day=trade_day,
+                        materialized=args.materialized,
                     )
                     if not dryrun:
                         df = refresh_feed_daily_table(
