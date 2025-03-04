@@ -24,7 +24,7 @@ import os
 import sys
 import json
 import argparse
-from datetime import date
+from datetime import date, datetime, time
 
 from loguru import logger
 from dotenv import load_dotenv
@@ -40,7 +40,11 @@ from app.db.load import (
     load_collection_stock_relation,
     load_by_level,
 )
-from app.db.materialized_view import check_mv_exists
+from app.db.materialized_view import (
+    check_mv_exists, 
+    check_mv_procedure_exists,
+    daily_recreate_mv,
+)
 from app.db.models import FeedDaily
 from app.display.tdx import add_to_tdx_path
 from app.display.google_sheet import add_df_to_new_sheet
@@ -75,7 +79,7 @@ def build_parser():
     subparser_init.add_argument('-i', '--ingest', action='store_true', default=False, help='Ingest all historical data after load')
     subparser_init.add_argument('-l', '--load', action='count', default=0, help='Load 0: none, 1: market, 2: stocks, 3: collection data after initialization')
     subparser_init.add_argument('-r', '--reset', action='store_true', default=False, help='Reinitialization of the database by dropping any all tables')
-    subparser_init.add_argument('-y', '--yes', action='store_true', default=False , help='Say yes to reset, use with caution')
+    subparser_init.add_argument('-y', '--yes', action='store_true', default=False, help='Say yes to reset, use with caution')
 
     #
     # run tasks
@@ -84,10 +88,11 @@ def build_parser():
     )
     subparser_run.add_argument('--date', default=date.today().isoformat(), help='The trade day to run the stock picker for')
     subparser_run.add_argument('-l', '--load', nargs='?', default='all', help='To load market/stock/collection/all (semi-)static data')
-    subparser_run.add_argument('-d', '--dryrun', action='store_true', default=False , help='Show task run results without committing, only applies to update/filter tasks')
-    subparser_run.add_argument('-s', '--skip', action='store_true', default=False , help='Skip autof fill history, if you are confident they are correct')
+    subparser_run.add_argument('-d', '--dryrun', action='store_true', default=False, help='Show task run results without committing, only applies to update/filter tasks')
+    subparser_run.add_argument('-s', '--skip', action='store_true', default=False, help='Skip autof fill history, if you are confident they are correct')
+    subparser_run.add_argument('-m', '--materialized', action=argparse.BooleanOptionalAction, default=True, help='Recreate/create materialized view')
     subparser_run.add_argument('-t', '--task', default='all', help='The trade task to run the stock picker for')
-    subparser_run.add_argument('-y', '--yes', action='store_true', default=False , help='Say yes to confirms')
+    subparser_run.add_argument('-y', '--yes', action='store_true', default=False, help='Say yes to confirms')
 
     #
     # reset tables
@@ -96,10 +101,10 @@ def build_parser():
                                             help='Reset the database to the initial/clean state'
     )
     subparser_reset.add_argument('-b', '--backup',  help='Back up the database by dumping')
-    subparser_reset.add_argument('-d', '--dryrun', action='store_true', default=False , help='Show the tables to be reset without actually resetting them')
+    subparser_reset.add_argument('-d', '--dryrun', action='store_true', default=False, help='Show the tables to be reset without actually resetting them')
     subparser_reset.add_argument('-i', '--init', action=argparse.BooleanOptionalAction, default=True, help='Init after purge')
     subparser_reset.add_argument('-t', '--table',  help='Drop and create one table')
-    subparser_reset.add_argument('-y', '--yes', action='store_true', default=False , help='Say yes to reset')
+    subparser_reset.add_argument('-y', '--yes', action='store_true', default=False, help='Say yes to reset')
 
     return parser
 
@@ -197,6 +202,18 @@ def main():
 
                 ############################
                 case "update":
+                    if args.materialized and check_mv_procedure_exists(engine) and not check_mv_exists(
+                        engine=engine,
+                        trade_day=trade_day,
+                        previous=True
+                    ):
+                        daily_recreate_mv(engine=engine, trade_day=trade_day, previous=True)
+                        
+                        # TODO: change to market specific close time
+                        now = datetime.now().time()
+                        if now > time(15, 0) and not check_mv_exists(engine, trade_day, previous=False):
+                            _ = daily_recreate_mv(engine, trade_day, previous=False)
+
                     calculate_ma250(
                         engine=engine, 
                         trade_day=trade_day, 
@@ -243,7 +260,20 @@ def main():
                         skip_hist_fill=args.skip, 
                         yes=args.yes
                     )
-                    if not check_mv_exists(engine, trade_day, previous=True):
+
+                    using_mv = False
+                    if args.materialized and check_mv_procedure_exists(engine) and not check_mv_exists(
+                        engine=engine,
+                        trade_day=trade_day,
+                        previous=True
+                    ):
+                        using_mv = daily_recreate_mv(engine=engine, trade_day=trade_day, previous=True)
+ 
+                        now = datetime.now().time()
+                        if now > time(15, 0) and not check_mv_exists(engine, trade_day, previous=False):
+                            _ = daily_recreate_mv(engine, trade_day, previous=False)
+
+                    if not using_mv:
                         calculate_ma250(
                             engine=engine, 
                             trade_day=trade_day

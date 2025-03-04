@@ -161,9 +161,20 @@ DAILY_RECREATE_MV_SQL = "SELECT create_mv_with_trade_day('{}');"
 
 CHECK_MV_EXISTS_SQL = """
 SELECT EXISTS (
-    SELECT 1
-    FROM pg_matviews
-    WHERE matviewname = :mv_name
+        SELECT 1
+        FROM pg_matviews
+        WHERE matviewname = :mv_name
+);
+"""
+
+
+CHECK_MV_PROCEDURE_EXISTS_SQL = """
+SELECT EXISTS (
+        SELECT *
+                FROM pg_catalog.pg_proc
+                JOIN pg_namespace ON pg_catalog.pg_proc.pronamespace = pg_namespace.oid
+                WHERE proname = 'create_mv_with_trade_day'
+        AND pg_namespace.nspname = 'public'
 );
 """
 
@@ -184,6 +195,13 @@ def init_db_mv(engine: Engine) -> None:
         session.execute(text(CREATE_MV_FUNCTION_SQL))
         session.commit()
         logger.success("Materialized view procedure created successfully")
+
+
+@trace_elapsed()
+def check_mv_procedure_exists(engine: Engine) -> bool:
+    with Session(engine) as session:
+        result = session.execute(text(CHECK_MV_PROCEDURE_EXISTS_SQL))
+        return bool(result.scalar())
 
 
 @trace_elapsed()
