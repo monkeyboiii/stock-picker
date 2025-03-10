@@ -64,7 +64,7 @@ class Collection(MetadataBase):
     type:                       Mapped[CollectionType]  = mapped_column(SQLAlchemyEnum(CollectionType))
 
     #
-    stocks:                     Mapped[List["Stock"]]   = relationship(
+    stocks:                     Mapped[List[Stock]]     = relationship(
                                 "Stock", secondary='relation_collection_stock', back_populates="collections")
 
 
@@ -78,7 +78,7 @@ class Stock(MetadataBase):
     # relations
     market_id:                  Mapped[int]         = mapped_column(ForeignKey('market.id'))
 
-    collections:                Mapped[List["Collection"]] = relationship(
+    collections:                Mapped[List[Collection]] = relationship(
                                 "Collection", secondary='relation_collection_stock', back_populates="stocks")
 
 
@@ -225,7 +225,7 @@ class FeedDaily(MetadataBase):
         return df.rename(columns=column_mapping)[list(column_mapping.values())]
     
     @classmethod
-    def right_align_columns(cls) -> List[int]:
+    def right_align_columns(cls) -> List[str]:
         columns = [
             'collection_performance',
             'previous_close',

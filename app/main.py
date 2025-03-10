@@ -204,7 +204,7 @@ def main():
                 ############################
                 case "update":
                     if args.materialized and check_mv_procedure_exists(engine):
-                        if check_mv_exists(engine, trade_day, previous=True):
+                        if not check_mv_exists(engine, trade_day, previous=True):
                             daily_create_mv(engine=engine, trade_day=trade_day, previous=True)
                         
                         # FIXME: change to market specific close time

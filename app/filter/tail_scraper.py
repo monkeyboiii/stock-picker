@@ -2,9 +2,9 @@ from typing import List, Optional
 from datetime import date
 
 from sqlalchemy import select, func, and_, true
-from sqlalchemy import Table, Select, Double
+from sqlalchemy import Table, Double
 from sqlalchemy.orm import Session
-from sqlalchemy.sql import lateral
+from sqlalchemy.sql import lateral, Select
 from sqlalchemy.engine import Engine
 from loguru import logger
 
@@ -59,8 +59,8 @@ def build_stmt_postgresql_lateral(trade_day: date) -> Select:
                 sd.c.circulation_capital.between(2_0000_0000, 200_0000_0000),
 
                 # T6
-                s.c.name.not_ilike("%ST%"),
-                s.c.name.not_like("%*%"),
+                s.c.name.not_ilike("ST"),
+                s.c.name.not_like("*"),
 
                 # T7
                 sd.c.ma_250 is not None,

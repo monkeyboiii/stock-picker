@@ -3,7 +3,8 @@ from typing import List, Optional
 
 from loguru import logger
 from pandas import DataFrame
-from sqlalchemy import Engine, delete, insert
+from sqlalchemy import delete, insert
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from app.constant.schedule import previous_trade_day
@@ -18,7 +19,7 @@ def refresh_feed_daily_table(
     trade_day: Optional[date] = None,
 ) -> DataFrame:
     if trade_day is None:
-        trade_day = previous_trade_day(trade_day, inclusive=True)
+        trade_day = previous_trade_day(date.today(), inclusive=True)
 
     df = FeedDaily.to_dataframe(fds)
 
@@ -46,7 +47,7 @@ if __name__ == "__main__":
     from app.db.engine import engine_from_env
     from app.filter.tail_scraper import filter_desired
 
-    trade_day = date(2025, 3, 4)
+    trade_day = date(2025, 3, 10)
     engine = engine_from_env()
     fds = filter_desired(
         engine=engine,

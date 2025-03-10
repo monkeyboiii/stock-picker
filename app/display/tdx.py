@@ -6,7 +6,8 @@ from typing import Optional
 from dotenv import load_dotenv
 from loguru import logger
 from pandas import DataFrame
-from sqlalchemy import Engine, distinct, select
+from sqlalchemy import distinct, select
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from app.constant.exchange import (

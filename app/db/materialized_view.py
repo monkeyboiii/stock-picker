@@ -2,7 +2,8 @@ from datetime import date
 from typing import Optional
 
 from loguru import logger
-from sqlalchemy import Engine, text
+from sqlalchemy import text
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from app.constant.schedule import is_stock_market_open, previous_trade_day

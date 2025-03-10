@@ -62,6 +62,7 @@ def get_color_for_column(series_: Series) -> Series:
         cap: Optional[int] = 1,
         threshold: Optional[float] = 0,
     ) -> Color:
+        threshold = threshold or 0
         base = 1.0
         if value > 0:
             fraction = (value - min_val) / (max_val - min_val) if max_val != min_val else 0
