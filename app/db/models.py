@@ -1,5 +1,8 @@
+from __future__ import annotations
+from datetime import datetime
 from typing import List
 
+from pandas import DataFrame
 from sqlalchemy import (
     Integer,
     String,
@@ -19,8 +22,8 @@ from sqlalchemy.orm import mapped_column, relationship
 from sqlalchemy.types import Enum as SQLAlchemyEnum
 from sqlalchemy.inspection import inspect
 
-from app.db.engine import engine_from_env
 from app.constant.collection import CollectionType
+from app.display.utils import ten_thousand_format
 
 
 class MetadataBase(DeclarativeBase):
@@ -61,7 +64,7 @@ class Collection(MetadataBase):
     type:                       Mapped[CollectionType]  = mapped_column(SQLAlchemyEnum(CollectionType))
 
     #
-    stocks:                     Mapped[List["Stock"]]   = relationship(
+    stocks:                     Mapped[List[Stock]]     = relationship(
                                 "Stock", secondary='relation_collection_stock', back_populates="collections")
 
 
@@ -75,7 +78,7 @@ class Stock(MetadataBase):
     # relations
     market_id:                  Mapped[int]         = mapped_column(ForeignKey('market.id'))
 
-    collections:                Mapped[List["Collection"]] = relationship(
+    collections:                Mapped[List[Collection]] = relationship(
                                 "Collection", secondary='relation_collection_stock', back_populates="stocks")
 
 
@@ -163,25 +166,108 @@ class FeedDaily(MetadataBase):
     
     # convenient
     name:                       Mapped[str]         = mapped_column(String)
-    volume:                     Mapped[BigInteger]  = mapped_column(BigInteger)
+    collection_name:            Mapped[String]      = mapped_column(String, nullable=True)
+    collection_performance:     Mapped[Float]       = mapped_column(Float, nullable=True)
+    previous_close:             Mapped[Numeric]     = mapped_column(Numeric(10, 3))
     close:                      Mapped[Numeric]     = mapped_column(Numeric(10, 3))
-
+    previous_volume:            Mapped[BigInteger]  = mapped_column(BigInteger)
+    volume:                     Mapped[BigInteger]  = mapped_column(BigInteger)
+    
     # derived
     gain:                       Mapped[Float]       = mapped_column(Float)
-    previous_close:             Mapped[Numeric]     = mapped_column(Numeric(10, 3))
-    previous_volume:            Mapped[BigInteger]  = mapped_column(BigInteger)
-    ma_5_volume:                Mapped[BigInteger]  = mapped_column(BigInteger)
-
-    # backtest
-    # TODO add backtest columns
+    volume_gain:                Mapped[Float]       = mapped_column(Float)
 
     def to_dict(self):
         return {c.key: getattr(self, c.key) for c in self.__table__.columns}
 
+    @classmethod
+    def to_dataframe(cls, fds: List[FeedDaily] = []) -> DataFrame:
+        df = DataFrame(
+            [fd.to_dict() for fd in fds],
+            columns=FeedDaily.__table__.columns.keys(),
+        )
+        df["last_updated"] = datetime.now()
+        return df
+    
+    @classmethod
+    def feed_column_mapping(cls) -> dict:
+        column_mapping = {
+            'trade_day':                '交易日',
+            'code':                     '股票代码',
+            'name':                     '股票名称',
+            'collection_name':          '板块名称',
+            'collection_performance':   '板块表现',
+            'previous_close':           '昨日收盘价',
+            'close':                    '现价',
+            'gain':                     '涨幅',
+            'previous_volume':          '昨日成交量',
+            'volume':                   '今日成交量',
+            'volume_gain':              '量涨幅',
+        }
+        return column_mapping
+    
+    @classmethod
+    def convert_to_feed(cls, df: DataFrame) -> DataFrame:
+        column_mapping = FeedDaily.feed_column_mapping()
+        transformations = {
+            'collection_performance':   lambda x: format(x, '.2f') + '%',
+            'gain':                     lambda x: format(x, '.2f') + '%',
+            'previous_close':           lambda x: format(x, '.2f'),
+            'close':                    lambda x: format(x, '.2f'),
+            'previous_volume':          lambda x: ten_thousand_format(x),
+            'volume':                   lambda x: ten_thousand_format(x),
+            'volume_gain':              lambda x: format(x, '.2f') + '%',
+        }
 
-# TODO MATERIALIZED VIEW
+        for col, func_ in transformations.items():
+            df[col] = df[col].apply(func_)
+        
+        return df.rename(columns=column_mapping)[list(column_mapping.values())]
+    
+    @classmethod
+    def right_align_columns(cls) -> List[str]:
+        columns = [
+            'collection_performance',
+            'previous_close',
+            'close',
+            'gain',
+            'previous_volume',
+            'volume',
+            'volume_gain',
+            # '板块表现',
+            # '昨日收盘价',
+            # '现价',
+            # '涨幅',
+            # '昨日成交量',
+            # '今日成交量',
+            # '量涨幅',
+        ]
+        # return [df.columns.get_loc(col) for col in columns] # type: ignore
+        return columns
+    
+    @classmethod
+    def colorize_columns(cls) -> List[str]:
+        columns = [
+            'collection_performance',
+            'gain',
+            'volume_gain',
+            # '板块表现',
+            # '涨幅',
+            # '量涨幅',
+        ]
+        # return [df.columns.get_loc(col) for col in columns] # type: ignore
+        return columns
 
 
 if __name__ == "__main__":
-    MetadataBase.metadata.create_all(engine_from_env(echo=True))
-    # MetadataBase.metadata.tables['stock_daily_filtered'].create(engine_from_env())
+    from app.db.engine import engine_from_env
+    from app.constant.confirm import confirms_execution
+    
+    engine = engine_from_env(echo=True)
+
+    # MetadataBase.metadata.create_all(engine)
+    confirms_execution("Table operations", defaultYes=False)
+    MetadataBase.metadata.tables['feed_daily'].drop(engine)
+    MetadataBase.metadata.tables['feed_daily'].create(engine)
+
+    # MetadataBase.metadata.create_all(engine_mock(echo=True))

@@ -4,8 +4,14 @@ from decimal import Decimal
 import akshare as ak # type: ignore
 from pandas import DataFrame, notna
 
-from app.constant.collection import *
-from app.constant.exchange import *
+from app.constant.collection import CollectionType
+from app.constant.exchange import (
+    SEX_BEIJING,
+    SEX_CHINA_MAINLAND,
+    SEX_HONGKONG,
+    SEX_SHANGHAI,
+    SEX_SHENZHEN,
+)
 
 
 market_map = {

@@ -23,3 +23,7 @@ def engine_from_env(**kwargs) -> Engine:
         raise Exception("Only support postgresql atm")
 
     return create_engine(url, **kwargs)
+
+
+def engine_mock(**kwargs):
+    return create_engine('sqlite:///:memory:', **kwargs)

@@ -20,7 +20,7 @@ def trace_elapsed(unit='ms'):
                     elapsed_time = (end_time - start_time) * 1000
                     formatted_time = f"{elapsed_time:12_.3f}"
 
-            logger.trace(f"Function '{func.__name__:20}' executed in {formatted_time} {unit}")
+            logger.trace(f"Function '{func.__name__[:20]:20}' executed in {formatted_time} {unit}")
             return result
         return wrapper
     return decorator
