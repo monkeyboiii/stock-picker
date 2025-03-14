@@ -173,6 +173,8 @@ cython_debug/
 .env.*
 *.tar
 
+# ruff
+.ruff_cache/
 
 .vscode/
 
