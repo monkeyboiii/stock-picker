@@ -31,7 +31,7 @@ up-to-date and correct.
 Dependencies
 
 ```sh
-pip install -r requirements
+pip install -r requirements.txt
 ```
 
 Environment
@@ -74,6 +74,11 @@ This command changes state form 4 -> 5
 python app/main.py run -t update
 ```
 
+This command filters and displays into configurec output. 
+```sh
+python app/main.py run -t display
+```
+
 #### reset
 
 This corresponds to state 2/3/4/5 -> state 1/2 transition.
@@ -85,9 +90,11 @@ python app/main.py reset
 ## TODOs
 
 - [x] redesign FeedDaily
-- [] backtests
-- [] get state of database
-- [] later insert of ma250 from materialized view
-- [] google sheet update 
-- [] real time data from 2:30 to 3:00 (akshare/openD)
-- [] async engine
+- [x] google sheet update
+- [ ] backtests
+- [ ] async engine
+- [ ] get state of database, visual inspection for observability
+- [ ] later insert of ma250 from materialized view, or drop ma250 from db
+- [ ] real time data from 2:30 to 3:00 (akshare/openD)
+- [ ] real time data from 2:30 to 3:00 (akshare/openD)
+- [ ] reset db
