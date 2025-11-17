@@ -177,7 +177,46 @@ class TestSchedule:
         (date(2024, 9, 17), False),  # Mid-Autumn Festival
         (date(2025, 2, 4), False),   # Chinese New Year
         (date(2025, 2, 8), False),   # Chinese New Year (weekend recovery)
+        (date(2026, 1, 1), False),   # 2026 New Year
+        (date(2026, 2, 15), False),  # 2026 Spring Festival
+        (date(2026, 10, 1), False),  # 2026 National Day
     ])
     def test_specific_non_trading_days(self, test_date, expected):
         """Test specific dates that should not be trading days."""
         assert is_stock_market_open(test_date) == expected
+
+    def test_2026_holidays(self):
+        """Test 2026 Chinese holiday calendar."""
+        # New Year (Jan 1-3)
+        assert not is_stock_market_open(date(2026, 1, 1))
+        assert not is_stock_market_open(date(2026, 1, 2))
+        assert not is_stock_market_open(date(2026, 1, 3))
+
+        # Spring Festival (Feb 15-23)
+        assert not is_stock_market_open(date(2026, 2, 15))
+        assert not is_stock_market_open(date(2026, 2, 23))
+
+        # Qingming (Apr 4-6)
+        assert not is_stock_market_open(date(2026, 4, 4))
+        assert not is_stock_market_open(date(2026, 4, 6))
+
+        # Labor Day (May 1-5)
+        assert not is_stock_market_open(date(2026, 5, 1))
+        assert not is_stock_market_open(date(2026, 5, 5))
+
+        # Dragon Boat (Jun 19-21)
+        assert not is_stock_market_open(date(2026, 6, 19))
+        assert not is_stock_market_open(date(2026, 6, 21))
+
+        # Mid-Autumn (Sep 25-27)
+        assert not is_stock_market_open(date(2026, 9, 25))
+        assert not is_stock_market_open(date(2026, 9, 27))
+
+        # National Day (Oct 1-7)
+        assert not is_stock_market_open(date(2026, 10, 1))
+        assert not is_stock_market_open(date(2026, 10, 7))
+
+        # Verify trading days after holidays
+        assert is_stock_market_open(date(2026, 1, 5))   # Mon after New Year
+        assert is_stock_market_open(date(2026, 2, 24))  # Tue after Spring Festival
+        assert is_stock_market_open(date(2026, 10, 8))  # Thu after National Day

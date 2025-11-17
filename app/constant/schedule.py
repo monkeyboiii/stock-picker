@@ -145,12 +145,64 @@ CHINA_MAINLAND_HOLIDAYS = set([
     date(2025, 10,  7),
     date(2025, 10,  8),
     date(2025, 10, 11),
+
+    ####################################################################################
+
+    # New Year's Day
+    date(2026,  1,  1),
+    date(2026,  1,  2),
+    date(2026,  1,  3),
+
+    # Spring Festival
+    date(2026,  2, 15),
+    date(2026,  2, 16),
+    date(2026,  2, 17),
+    date(2026,  2, 18),
+    date(2026,  2, 19),
+    date(2026,  2, 20),
+    date(2026,  2, 21),
+    date(2026,  2, 22),
+    date(2026,  2, 23),
+
+    # Qingming Festival
+    date(2026,  4,  4),
+    date(2026,  4,  5),
+    date(2026,  4,  6),
+
+    # Chinese Labor Day
+    date(2026,  5,  1),
+    date(2026,  5,  2),
+    date(2026,  5,  3),
+    date(2026,  5,  4),
+    date(2026,  5,  5),
+
+    # Dragon Boat Festival
+    date(2026,  6, 19),
+    date(2026,  6, 20),
+    date(2026,  6, 21),
+
+    # Mid-Autumn Festival
+    date(2026,  9, 25),
+    date(2026,  9, 26),
+    date(2026,  9, 27),
+
+    # China's National Day
+    date(2026, 10,  1),
+    date(2026, 10,  2),
+    date(2026, 10,  3),
+    date(2026, 10,  4),
+    date(2026, 10,  5),
+    date(2026, 10,  6),
+    date(2026, 10,  7),
 ])
 
 
 def is_stock_market_open(day: date):
     '''
-    Checks from 2023-01-01 to 2025-12-31.
+    Checks from 2023-01-01 to 2026-12-31.
+
+    Note: Makeup work days (周六/周日上班) ARE trading days and should NOT be in the holiday set.
+    Only actual holidays when the market is closed should be included.
     '''
 
     return day.weekday() < 5 and day not in CHINA_MAINLAND_HOLIDAYS
