@@ -19,7 +19,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
-from app.api.dependencies import get_engine
+from app.api.dependencies import init_engine, dispose_engine
 from app.constant.version import VERSION
 
 
@@ -28,21 +28,24 @@ async def lifespan(app: FastAPI):
     """
     Lifespan context manager for FastAPI
 
-    Handles startup and shutdown events.
+    Handles startup and shutdown events with proper resource management.
     """
     # Startup
     logger.info("Starting Stock Picker API...")
     logger.info(f"Version: {VERSION}")
 
-    # Initialize database engine
-    engine = get_engine()
-    logger.info(f"Database connected: {engine.url}")
+    # Initialize database engine with connection pooling
+    engine = init_engine()
+    app.state.engine = engine
+    logger.info(f"Database connected: {engine.url.database}")
+    logger.info(f"Connection pool: size={engine.pool.size()}, max_overflow={engine.pool._max_overflow}")
 
     yield
 
     # Shutdown
     logger.info("Shutting down Stock Picker API...")
-    engine.dispose()
+    dispose_engine()
+    logger.success("Shutdown complete")
 
 
 # Create FastAPI application
