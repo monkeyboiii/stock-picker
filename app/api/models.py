@@ -6,26 +6,88 @@ They are separate from database models to allow for flexible API versioning.
 """
 
 from datetime import date, datetime
+from decimal import Decimal
 from typing import List, Optional
+from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 # Request models
 
 class BacktestRunRequest(BaseModel):
-    """Request model for creating a new backtest run"""
+    """Request model for creating a new backtest run with comprehensive validation"""
 
-    strategy_id: Optional[str] = Field(None, description="UUID of existing strategy")
+    strategy_id: Optional[UUID] = Field(None, description="UUID of existing strategy")
     strategy_file_content: Optional[str] = Field(None, description="YAML/JSON strategy content")
 
     start_date: date = Field(..., description="Backtest start date")
     end_date: date = Field(..., description="Backtest end date")
 
-    initial_capital: float = Field(1000000.0, ge=0, description="Initial capital in CNY")
-    commission_rate: float = Field(0.0003, ge=0, le=1, description="Commission rate (default 0.03%)")
-    slippage_rate: float = Field(0.001, ge=0, le=1, description="Slippage rate (default 0.1%)")
-    max_positions: int = Field(20, ge=1, le=100, description="Maximum concurrent positions")
+    initial_capital: Decimal = Field(
+        Decimal("1000000.0"),
+        gt=0,
+        le=Decimal("1000000000.0"),  # Max 1 billion
+        description="Initial capital in CNY (must be positive)"
+    )
+    commission_rate: Decimal = Field(
+        Decimal("0.0003"),
+        ge=0,
+        le=Decimal("0.1"),  # Max 10%
+        description="Commission rate (default 0.03%)"
+    )
+    slippage_rate: Decimal = Field(
+        Decimal("0.001"),
+        ge=0,
+        le=Decimal("0.1"),  # Max 10%
+        description="Slippage rate (default 0.1%)"
+    )
+    max_positions: int = Field(
+        20,
+        ge=1,
+        le=100,
+        description="Maximum concurrent positions"
+    )
+
+    @field_validator('start_date')
+    @classmethod
+    def validate_start_date(cls, v: date) -> date:
+        """Validate start_date is not in the future"""
+        if v > date.today():
+            raise ValueError("start_date cannot be in the future")
+        if v.year < 2000:
+            raise ValueError("start_date must be after year 2000")
+        return v
+
+    @model_validator(mode='after')
+    def validate_date_range(self):
+        """Validate end_date is after start_date"""
+        if self.end_date <= self.start_date:
+            raise ValueError(
+                f"end_date ({self.end_date}) must be after start_date ({self.start_date})"
+            )
+
+        # Check date range is not too long (max 10 years)
+        days_diff = (self.end_date - self.start_date).days
+        if days_diff > 3650:  # ~10 years
+            raise ValueError(
+                f"Date range too long ({days_diff} days). Maximum is 10 years (3650 days)"
+            )
+
+        return self
+
+    @model_validator(mode='after')
+    def validate_strategy_source(self):
+        """Validate either strategy_id or strategy_file_content is provided"""
+        if not self.strategy_id and not self.strategy_file_content:
+            raise ValueError(
+                "Either strategy_id or strategy_file_content must be provided"
+            )
+        if self.strategy_id and self.strategy_file_content:
+            raise ValueError(
+                "Provide either strategy_id or strategy_file_content, not both"
+            )
+        return self
 
     class Config:
         json_schema_extra = {
