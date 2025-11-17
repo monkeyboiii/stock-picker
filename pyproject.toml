@@ -31,6 +31,8 @@ dependencies = [
     "gspread==6.1.4",
     "gspread-formatting==1.2.0",
     "pandas>=2.0.0",  # Required by akshare but not explicitly listed
+    "numpy>=1.24.0",  # Required for backtest metrics
+    "pyyaml>=6.0.0",  # Required for strategy DSL
 ]
 
 [project.optional-dependencies]

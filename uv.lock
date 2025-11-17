@@ -1601,10 +1601,12 @@ dependencies = [
     { name = "gspread-formatting" },
     { name = "loguru" },
     { name = "mypy" },
+    { name = "numpy" },
     { name = "pandas" },
     { name = "psycopg2-binary" },
     { name = "pydantic" },
     { name = "python-dotenv" },
+    { name = "pyyaml" },
     { name = "sqlalchemy" },
 ]
 
@@ -1628,6 +1630,7 @@ requires-dist = [
     { name = "loguru", specifier = "==0.7.3" },
     { name = "matplotlib", marker = "extra == 'dev'", specifier = "==3.10.0" },
     { name = "mypy", specifier = "==1.15.0" },
+    { name = "numpy", specifier = ">=1.24.0" },
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "psycopg2-binary", specifier = "==2.9.10" },
@@ -1635,6 +1638,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.1.0" },
     { name = "python-dotenv", specifier = "==1.0.1" },
+    { name = "pyyaml", specifier = ">=6.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.9.10" },
     { name = "sqlalchemy", specifier = "==2.0.36" },
 ]

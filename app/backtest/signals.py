@@ -5,11 +5,13 @@ This module handles:
 - Scanning for entry signals (stocks matching entry conditions)
 - Evaluating exit conditions for open positions
 - Interfacing with existing filter logic (tail_scraper)
+- Support for DSL-based strategies (Phase 2)
 """
 
 from datetime import date
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 from loguru import logger
 from sqlalchemy import select
@@ -24,8 +26,9 @@ class SignalEngine:
     """
     Evaluates entry and exit signals for backtesting.
 
-    For now, uses the existing tail_scraper logic for entry signals.
-    Future versions will support custom strategy definitions.
+    Supports both:
+    - Legacy dictionary-based strategies (from StrategyBuilder)
+    - DSL-based strategies (from parsed YAML/JSON)
     """
 
     def __init__(self, strategy_definition: Optional[Dict] = None):
@@ -33,15 +36,48 @@ class SignalEngine:
         Initialize SignalEngine
 
         Args:
-            strategy_definition: Optional strategy definition dict
-                                 (for future use with custom strategies)
+            strategy_definition: Strategy definition dict or StrategyDefinition object
         """
         self.strategy_definition = strategy_definition or {}
 
-        # Extract exit parameters from strategy definition
-        self.take_profit_pct = self.strategy_definition.get("take_profit_pct", Decimal("10.0"))
-        self.stop_loss_pct = self.strategy_definition.get("stop_loss_pct", Decimal("-5.0"))
-        self.max_holding_days = self.strategy_definition.get("max_holding_days", 30)
+        # Check if this is a DSL-based strategy (has StrategyDefinition attributes)
+        self._is_dsl_strategy = hasattr(strategy_definition, "exit_conditions")
+
+        if self._is_dsl_strategy:
+            # Extract from DSL StrategyDefinition
+            exit_conds = strategy_definition.exit_conditions.conditions
+            self.take_profit_pct = self._extract_exit_value(exit_conds, "take_profit")
+            self.stop_loss_pct = self._extract_exit_value(exit_conds, "stop_loss")
+            self.max_holding_days = self._extract_exit_value(exit_conds, "time_based")
+        else:
+            # Legacy dictionary-based strategy
+            self.take_profit_pct = self.strategy_definition.get("take_profit_pct", Decimal("10.0"))
+            self.stop_loss_pct = self.strategy_definition.get("stop_loss_pct", Decimal("-5.0"))
+            self.max_holding_days = self.strategy_definition.get("max_holding_days", 30)
+
+    def _extract_exit_value(self, exit_conditions: List, condition_type: str) -> Decimal:
+        """
+        Extract exit condition value from DSL strategy
+
+        Args:
+            exit_conditions: List of exit conditions
+            condition_type: Type of condition to extract
+
+        Returns:
+            Extracted value
+        """
+        for condition in exit_conditions:
+            if hasattr(condition, "type"):
+                if condition.type.value == condition_type:
+                    return Decimal(str(condition.value))
+
+        # Defaults
+        defaults = {
+            "take_profit": Decimal("10.0"),
+            "stop_loss": Decimal("-5.0"),
+            "time_based": 30,
+        }
+        return defaults.get(condition_type, Decimal("0"))
 
     def scan_entry_signals(
         self,
@@ -58,7 +94,70 @@ class SignalEngine:
         Returns:
             List of candidate stocks with metadata
         """
-        # Use existing tail_scraper logic for now
+        # Check if using DSL-based strategy
+        if self._is_dsl_strategy:
+            return self._scan_entry_signals_dsl(trade_day, engine)
+        else:
+            return self._scan_entry_signals_legacy(trade_day, engine)
+
+    def _scan_entry_signals_dsl(
+        self,
+        trade_day: date,
+        engine: Engine,
+    ) -> List[Dict[str, Any]]:
+        """
+        Scan using DSL-based strategy
+
+        Args:
+            trade_day: Trade date
+            engine: Database engine
+
+        Returns:
+            List of candidates
+        """
+        from app.strategy.query_builder import build_query_from_strategy
+
+        # Build query from strategy definition
+        query = build_query_from_strategy(self.strategy_definition, trade_day)
+
+        with Session(engine) as session:
+            result = session.execute(query).fetchall()
+
+            candidates = []
+            for row in result:
+                candidate = {
+                    "code": row.code,
+                    "name": row.name if hasattr(row, "name") else "",
+                    "price": row.close if hasattr(row, "close") else Decimal(0),
+                    "signal": {
+                        "type": "dsl_strategy",
+                        "strategy_name": self.strategy_definition.name,
+                        "strategy_version": self.strategy_definition.version,
+                        "trade_day": trade_day.isoformat(),
+                    },
+                    "collection_name": row.collection_name if hasattr(row, "collection_name") else None,
+                }
+                candidates.append(candidate)
+
+            logger.debug(f"Found {len(candidates)} entry signals (DSL) for {trade_day}")
+            return candidates
+
+    def _scan_entry_signals_legacy(
+        self,
+        trade_day: date,
+        engine: Engine,
+    ) -> List[Dict[str, Any]]:
+        """
+        Scan using legacy tail_scraper logic
+
+        Args:
+            trade_day: Trade date
+            engine: Database engine
+
+        Returns:
+            List of candidates
+        """
+        # Use existing tail_scraper logic
         stmt = build_stmt_postgresql_lateral(trade_day)
 
         with Session(engine) as session:
@@ -79,7 +178,7 @@ class SignalEngine:
                 }
                 candidates.append(candidate)
 
-            logger.debug(f"Found {len(candidates)} entry signals for {trade_day}")
+            logger.debug(f"Found {len(candidates)} entry signals (legacy) for {trade_day}")
             return candidates
 
     def check_exit(
@@ -196,7 +295,7 @@ class StrategyBuilder:
     """
     Helper class to build strategy definitions programmatically.
 
-    This will be expanded to support the full strategy DSL from the design doc.
+    This supports both legacy dictionary-based strategies and DSL-based strategies.
     """
 
     @staticmethod
@@ -206,7 +305,7 @@ class StrategyBuilder:
         max_holding_days: int = 30,
     ) -> Dict:
         """
-        Build the default tail_scraper strategy definition
+        Build the default tail_scraper strategy definition (legacy format)
 
         Args:
             take_profit_pct: Take profit percentage (positive)
@@ -233,3 +332,41 @@ class StrategyBuilder:
                 "time_limit": max_holding_days,
             },
         }
+
+    @staticmethod
+    def from_yaml_file(file_path: Union[str, Path]):
+        """
+        Load strategy from YAML file
+
+        Args:
+            file_path: Path to YAML strategy file
+
+        Returns:
+            Parsed and validated StrategyDefinition
+
+        Example:
+            >>> strategy = StrategyBuilder.from_yaml_file("strategies/tail_scraper.yaml")
+            >>> engine = BacktestEngine(strategy_definition=strategy, ...)
+        """
+        from app.strategy import parse_strategy, validate_strategy
+
+        strategy = parse_strategy(file_path)
+        validate_strategy(strategy)
+        return strategy
+
+    @staticmethod
+    def from_json_file(file_path: Union[str, Path]):
+        """
+        Load strategy from JSON file
+
+        Args:
+            file_path: Path to JSON strategy file
+
+        Returns:
+            Parsed and validated StrategyDefinition
+        """
+        from app.strategy import parse_strategy, validate_strategy
+
+        strategy = parse_strategy(file_path)
+        validate_strategy(strategy)
+        return strategy
