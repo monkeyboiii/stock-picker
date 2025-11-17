@@ -9,7 +9,7 @@
 4. Display results via Google Sheets and TDX format
 
 **Tech Stack:**
-- Python 3.x with SQLAlchemy 2.0
+- Python 3.13+ with SQLAlchemy 2.0
 - PostgreSQL 16+ (required)
 - Data source: AKShare library (Chinese stock data)
 - Display: Google Sheets API, TDX format
@@ -671,7 +671,7 @@ uv lock
 
 Ruff is configured in `pyproject.toml` with:
 - Line length: 120 characters
-- Python 3.10+ target
+- Python 3.13+ target
 - Enabled checks: pycodestyle, pyflakes, isort, flake8-bugbear, comprehensions, pyupgrade
 - Auto-formatting with double quotes and 4-space indentation
 
