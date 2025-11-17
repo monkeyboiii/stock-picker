@@ -28,57 +28,85 @@ up-to-date and correct.
 
 ### Preparation
 
-Dependencies
+#### Dependencies
+
+Install [uv](https://docs.astral.sh/uv/) if not already installed:
 
 ```sh
-pip install -r requirements
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-Environment
+Sync all dependencies (production + dev):
 
-* ***PostgreSQL*** database
-* `.env` file
-* google `credentials.json` for result upload
+```sh
+uv sync
+```
+
+Or sync production dependencies only:
+
+```sh
+uv sync --no-dev
+```
+
+#### Environment
+
+* ***PostgreSQL*** database (version 16+)
+* `.env` file (see `example.env`)
+* Google `credentials.json` for result upload
 
 ### Execution
 
-```sh
-# can use module level import
-export PYTHONPATH=.
+After syncing dependencies, you can run the application using:
 
+```sh
+# Using uv run (recommended - no activation needed)
+uv run stock-picker [-h|--help]
+
+# Or activate the virtual environment
+source .venv/bin/activate  # On Unix
+# .venv\Scripts\activate   # On Windows
+stock-picker [-h|--help]
+
+# Or run directly with Python
 python app/main.py [-h|--help]
 ```
 
 #### Init
-This corresponds to state 1 -> state 2 transition.
+
+This corresponds to state 1 → state 2 transition.
+
 ```sh
-python app/main.py init -r -lll
+uv run stock-picker init -r -lll
 ```
 
 #### Run
 
 This command can be run at state 2/3/4, which will push the state to 5.
 And once at state 5, you can schedule to run this command on a daily basis.
+
 ```sh
-python app/main.py run
+uv run stock-picker run
 ```
 
-If you do not want to filter just yet, this command corresponds to state 2 -> state 3/4 transition.
-Since natural days go by and trade data may become outdated on a daily basis, this corresponds to the everyday state update from 5 -> 3 -> 4.
+If you do not want to filter just yet, this command corresponds to state 2 → state 3/4 transition.
+Since natural days go by and trade data may become outdated on a daily basis, this corresponds to the everyday state update from 5 → 3 → 4.
+
 ```sh
-python app/main.py run -t ingest
+uv run stock-picker run -t ingest
 ```
 
-This command changes state form 4 -> 5
+This command changes state from 4 → 5:
+
 ```sh
-python app/main.py run -t update
+uv run stock-picker run -t update
 ```
 
-#### reset
+#### Reset
 
-This corresponds to state 2/3/4/5 -> state 1/2 transition.
+This corresponds to state 2/3/4/5 → state 1/2 transition.
+
 ```sh
-python app/main.py reset
+uv run stock-picker reset
 ```
 
 
@@ -88,6 +116,6 @@ python app/main.py reset
 - [] backtests
 - [] get state of database
 - [] later insert of ma250 from materialized view
-- [] google sheet update 
+- [] google sheet update
 - [] real time data from 2:30 to 3:00 (akshare/openD)
 - [] async engine

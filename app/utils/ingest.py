@@ -1,30 +1,29 @@
 from datetime import date, timedelta
-from typing import Optional
 
 from loguru import logger
 from sqlalchemy import select
-from sqlalchemy.orm import Session
 from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
 
 from app.constant.collection import CollectionType
-from app.constant.schedule import next_trade_day, previous_trade_day
 from app.constant.confirm import confirms_execution
+from app.constant.schedule import next_trade_day, previous_trade_day
 from app.db.engine import engine_from_env
-from app.db.models import Stock, StockDaily
 from app.db.ingest import (
     load_individual_stock_daily_hist,
-    refresh_stock_daily,
     refresh_collection_daily,
+    refresh_stock_daily,
 )
+from app.db.models import Stock, StockDaily
 from app.profile.tracer import trace_elapsed
 
 
 @trace_elapsed(unit='s')
 def auto_fill(
-    engine: Engine, 
-    up_to_date: Optional[date] = None, 
-    skip_hist_fill: Optional[bool] = False, 
-    yes: Optional[bool] = False
+    engine: Engine,
+    up_to_date: date | None = None,
+    skip_hist_fill: bool | None = False,
+    yes: bool | None = False
 ) -> None:
     '''
     Auto fill history data up to a specific date for all stocks.
@@ -65,13 +64,13 @@ def auto_fill(
             start_day_map = {}
             # refresh stock daily if only 1 day missing
             # start_day_map_single = {}
-            
+
             for row in db_latest_dates:
                 code, db_latest_trade_day = row
 
                 if db_latest_trade_day is None:
                     continue
-                
+
                 supposed_next_trade_day = next_trade_day(db_latest_trade_day, inclusive=False)
                 if supposed_next_trade_day > up_to_date:
                     continue
@@ -80,7 +79,7 @@ def auto_fill(
                     start_day_map[code] = supposed_next_trade_day
                 # else:
                 #     start_day_map_single[code] = supposed_next_trade_day
-            
+
             load_individual_stock_daily_hist(engine, start_day_map, up_to_date)
 
         #

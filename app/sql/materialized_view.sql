@@ -19,14 +19,14 @@ SELECT
         volume_ma5_subq.volume          AS prev_5_volume        -- volume 5 days ago
 FROM stock_daily sd
 
-JOIN LATERAL 
+JOIN LATERAL
 (
         -- ma250_subq
-        SELECT 
+        SELECT
         (
                 -- ma250_expr
                 SELECT AVG(close)
-                FROM 
+                FROM
                 (
                         -- ma250_innermost
                         SELECT close
@@ -39,7 +39,7 @@ JOIN LATERAL
         ) AS ma250,
         (
                 SELECT COUNT(close)
-                FROM 
+                FROM
                 (
                         -- ma250_innermost
                         SELECT close
@@ -53,10 +53,10 @@ JOIN LATERAL
         (
                 -- ma250_expr
                 SELECT close
-                FROM 
+                FROM
                 (
                         -- ma250_innermost
-                        SELECT 
+                        SELECT
                                 close,
                                 trade_day
                         FROM stock_daily
@@ -65,7 +65,7 @@ JOIN LATERAL
                         ORDER BY trade_day DESC
                         LIMIT 250
                 ) AS ma250_innermost
-                ORDER BY trade_day ASC 
+                ORDER BY trade_day ASC
                 LIMIT 1
         ) AS close
         FROM stock_daily
@@ -75,11 +75,11 @@ JOIN LATERAL
 JOIN LATERAL
 (
         -- volume_ma5_subq
-        SELECT 
+        SELECT
         (
                 -- vol_ma5_expr
                 SELECT AVG(volume)
-                FROM 
+                FROM
                 (
                         -- volume_ma5_innermost
                         SELECT volume
@@ -93,10 +93,10 @@ JOIN LATERAL
         (
                 -- vol_ma5_volume_expr
                 SELECT volume
-                FROM 
+                FROM
                 (
                         -- volume_ma5_innermost
-                        SELECT 
+                        SELECT
                                 volume,
                                 trade_day
                         FROM stock_daily
@@ -112,20 +112,20 @@ JOIN LATERAL
         WHERE code = sd.code AND trade_day = sd.trade_day
 ) volume_ma5_subq ON true
 
-WHERE 
-        sd.trade_day = '2025-02-28' AND 
+WHERE
+        sd.trade_day = '2025-02-28' AND
         ma250_subq.row_count = 250;
 
 
 
-CREATE OR REPLACE FUNCTION create_mv_with_trade_day(input_trade_day DATE) 
+CREATE OR REPLACE FUNCTION create_mv_with_trade_day(input_trade_day DATE)
 RETURNS boolean AS
 $$
 DECLARE
   exists_result boolean;
 BEGIN
         EXECUTE format(
-                'DROP MATERIALIZED VIEW IF EXISTS %s;', 
+                'DROP MATERIALIZED VIEW IF EXISTS %s;',
                 'mv_stock_daily_' || replace(input_trade_day::text, '-', '_')
         );
 
@@ -143,14 +143,14 @@ SELECT
         volume_ma5_subq.volume          AS prev_5_volume        -- volume 5 days ago
 FROM stock_daily sd
 
-JOIN LATERAL 
+JOIN LATERAL
 (
         -- ma250_subq
-        SELECT 
+        SELECT
         (
                 -- ma250_expr
                 SELECT AVG(close)
-                FROM 
+                FROM
                 (
                         -- ma250_innermost
                         SELECT close
@@ -163,7 +163,7 @@ JOIN LATERAL
         ) AS ma250,
         (
                 SELECT COUNT(close)
-                FROM 
+                FROM
                 (
                         -- ma250_innermost
                         SELECT close
@@ -177,10 +177,10 @@ JOIN LATERAL
         (
                 -- ma250_expr
                 SELECT close
-                FROM 
+                FROM
                 (
                         -- ma250_innermost
-                        SELECT 
+                        SELECT
                                 close,
                                 trade_day
                         FROM stock_daily
@@ -189,7 +189,7 @@ JOIN LATERAL
                         ORDER BY trade_day DESC
                         LIMIT 250
                 ) AS ma250_innermost
-                ORDER BY trade_day ASC 
+                ORDER BY trade_day ASC
                 LIMIT 1
         ) AS close
         FROM stock_daily
@@ -199,11 +199,11 @@ JOIN LATERAL
 JOIN LATERAL
 (
         -- volume_ma5_subq
-        SELECT 
+        SELECT
         (
                 -- vol_ma5_expr
                 SELECT AVG(volume)
-                FROM 
+                FROM
                 (
                         -- volume_ma5_innermost
                         SELECT volume
@@ -217,10 +217,10 @@ JOIN LATERAL
         (
                 -- vol_ma5_volume_expr
                 SELECT volume
-                FROM 
+                FROM
                 (
                         -- volume_ma5_innermost
-                        SELECT 
+                        SELECT
                                 volume,
                                 trade_day
                         FROM stock_daily
@@ -236,9 +236,9 @@ JOIN LATERAL
         WHERE code = sd.code AND trade_day = sd.trade_day
 ) volume_ma5_subq ON true
 
-WHERE 
-        sd.trade_day = %L AND 
-        ma250_subq.row_count = 250;', 
+WHERE
+        sd.trade_day = %L AND
+        ma250_subq.row_count = 250;',
 
         -- %s
         'mv_stock_daily_' || replace(input_trade_day::text, '-', '_'),

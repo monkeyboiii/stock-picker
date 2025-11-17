@@ -1,4 +1,3 @@
-from typing import Optional
 
 from loguru import logger
 from sqlalchemy.engine import Engine
@@ -13,10 +12,10 @@ from app.profile.tracer import trace_elapsed
 
 @trace_elapsed()
 def reset_db_content(
-    engine: Engine, 
-    dryrun: Optional[bool] = False,
-    reset: Optional[bool] = False,
-    yes: Optional[bool] = False,
+    engine: Engine,
+    dryrun: bool | None = False,
+    reset: bool | None = False,
+    yes: bool | None = False,
 ):
     if reset:
         if dryrun:
@@ -43,18 +42,18 @@ def reset_db_content(
 
 
 def reset_table_content(
-    engine: Engine, 
-    dryrun: Optional[bool] = False,
-    reset: Optional[bool] = False,
-    yes: Optional[bool] = False,
+    engine: Engine,
+    dryrun: bool | None = False,
+    reset: bool | None = False,
+    yes: bool | None = False,
 ):
     pass
 
 
 if __name__ == '__main__':
     reset_db_content(
-        engine_from_env(echo=True), 
+        engine_from_env(echo=True),
         dryrun=False,
-        reset=True, 
+        reset=True,
         yes=False,
     )

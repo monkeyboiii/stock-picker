@@ -17,7 +17,7 @@ CHINA_MAINLAND_HOLIDAYS = set([
     date(2023,  1, 27),
     date(2023,  1, 28),
     date(2023,  1, 29),
-    
+
     # Qingming Festival
     date(2023,  4,  5),
 
@@ -29,11 +29,11 @@ CHINA_MAINLAND_HOLIDAYS = set([
     date(2023,  5,  2),
     date(2023,  5,  3),
     date(2023,  5,  6),
-    
+
     # Dragon Boat Festival
     date(2023,  6, 22),
     date(2023,  6, 23),
-    
+
     # China's National Day and Mid-Autumn Festival
     date(2023,  9, 29),
     date(2023,  9, 30),
@@ -45,14 +45,14 @@ CHINA_MAINLAND_HOLIDAYS = set([
     date(2023, 10,  6),
     date(2023, 10,  7),
     date(2023, 10,  8),
-    
+
     ####################################################################################
-    
+
     # New Year's Day
     date(2023, 12, 31),
     date(2024,  1,  1),
 
-    # Chinese New Year    
+    # Chinese New Year
     date(2024,  2,  4),
     date(2024,  2,  9),
     date(2024,  2, 10),
@@ -79,15 +79,15 @@ CHINA_MAINLAND_HOLIDAYS = set([
     date(2024,  5,  4),
     date(2024,  5,  5),
     date(2024,  5,  11),
-    
+
     # Dragon Boat Festival
     date(2024,  6, 10),
-    
+
     # Mid-Autumn Festival
     date(2024,  9, 14),
     date(2024,  9, 15),
     date(2024,  9, 17),
-    
+
     # China's National Day
     date(2024,  9, 29),
     date(2024, 10,  1),
@@ -98,13 +98,13 @@ CHINA_MAINLAND_HOLIDAYS = set([
     date(2024, 10,  6),
     date(2024, 10,  7),
     date(2024, 10, 12),
-    
+
     ####################################################################################
-    
+
     # New Year's Day
     date(2025,  1,  1),
 
-    # Chinese New Year    
+    # Chinese New Year
     date(2025,  1, 26),
     date(2025,  1, 28),
     date(2025,  1, 29),
@@ -128,12 +128,12 @@ CHINA_MAINLAND_HOLIDAYS = set([
     date(2025,  5,  3),
     date(2025,  5,  4),
     date(2025,  5,  5),
-    
+
     # Dragon Boat Festival
     date(2025,  5, 31),
     date(2025,  6,  1),
     date(2025,  6,  2),
-    
+
     # China's National Day and Mid-Autumn Festival
     date(2025,  9, 28),
     date(2025, 10,  1),
@@ -145,12 +145,64 @@ CHINA_MAINLAND_HOLIDAYS = set([
     date(2025, 10,  7),
     date(2025, 10,  8),
     date(2025, 10, 11),
+
+    ####################################################################################
+
+    # New Year's Day
+    date(2026,  1,  1),
+    date(2026,  1,  2),
+    date(2026,  1,  3),
+
+    # Spring Festival
+    date(2026,  2, 15),
+    date(2026,  2, 16),
+    date(2026,  2, 17),
+    date(2026,  2, 18),
+    date(2026,  2, 19),
+    date(2026,  2, 20),
+    date(2026,  2, 21),
+    date(2026,  2, 22),
+    date(2026,  2, 23),
+
+    # Qingming Festival
+    date(2026,  4,  4),
+    date(2026,  4,  5),
+    date(2026,  4,  6),
+
+    # Chinese Labor Day
+    date(2026,  5,  1),
+    date(2026,  5,  2),
+    date(2026,  5,  3),
+    date(2026,  5,  4),
+    date(2026,  5,  5),
+
+    # Dragon Boat Festival
+    date(2026,  6, 19),
+    date(2026,  6, 20),
+    date(2026,  6, 21),
+
+    # Mid-Autumn Festival
+    date(2026,  9, 25),
+    date(2026,  9, 26),
+    date(2026,  9, 27),
+
+    # China's National Day
+    date(2026, 10,  1),
+    date(2026, 10,  2),
+    date(2026, 10,  3),
+    date(2026, 10,  4),
+    date(2026, 10,  5),
+    date(2026, 10,  6),
+    date(2026, 10,  7),
 ])
 
 
 def is_stock_market_open(day: date):
     '''
-    Checks from 2023-01-01 to 2025-12-31.
+    Checks from 2023-01-01 to 2026-12-31.
+
+    Note: Makeup work days (周六/周日上班) ARE trading days and should NOT be in the holiday set.
+    Only actual holidays when the market is closed should be included.
     '''
 
     return day.weekday() < 5 and day not in CHINA_MAINLAND_HOLIDAYS
@@ -162,7 +214,7 @@ def previous_trade_day(day: date, inclusive = True) -> date:
 
     while not is_stock_market_open(day):
         day = day - timedelta(days=1)
-    
+
     return day
 
 
@@ -172,7 +224,7 @@ def next_trade_day(day: date, inclusive = True) -> date:
 
     while not is_stock_market_open(day):
         day = day + timedelta(days=1)
-    
+
     return day
 
 

@@ -2,48 +2,47 @@
 Ingesting is for dynamic data like stock daily/collection daily
 """
 
-from time import sleep
 from datetime import date, timedelta
-from typing import Optional, Dict
+from time import sleep
 
-from pandas import isna
 from loguru import logger
+from pandas import isna
 from sqlalchemy import select
-from sqlalchemy.orm import Session
-from sqlalchemy.engine import Engine
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
 
 from app.constant.collection import CollectionType
 from app.constant.exchange import MARKET_SUPPORTED
 from app.constant.misc import TIME_SLEEP_SECS
 from app.constant.schedule import (
-    is_stock_market_open, 
+    is_stock_market_open,
     previous_trade_day,
 )
 from app.data.ak import (
-    pull_collection_daily, 
-    pull_stock_daily, 
+    pull_collection_daily,
+    pull_stock_daily,
     pull_stock_daily_hist,
 )
 from app.db.engine import engine_from_env
 from app.db.models import (
-    Collection, 
-    Market, 
-    Stock, 
-    StockDaily, 
+    Collection,
     CollectionDaily,
+    Market,
+    Stock,
+    StockDaily,
 )
 
 
 def load_individual_stock_daily_hist(
-    engine: Engine, 
-    start_day_map: Dict[str, date] = {},
-    end_date: Optional[date] = None,
+    engine: Engine,
+    start_day_map: dict[str, date] = {},
+    end_date: date | None = None,
 ) -> None:
     with Session(engine) as session:
         if end_date is None:
             end_date = date.today()
-        
+
         for code, start_day in start_day_map.items():
             assert start_day <= end_date
 
@@ -79,7 +78,7 @@ def load_individual_stock_daily_hist(
                 )
                 for _, row in df.iterrows()
             ]
-            
+
             session.add_all(stock_objs)
             session.commit()
 
@@ -91,8 +90,8 @@ def load_individual_stock_daily_hist(
 def load_all_stock_daily_hist(
     engine:     Engine,
     market_name: str,
-    start_date: Optional[date] = None,
-    end_date:   Optional[date] = None,
+    start_date: date | None = None,
+    end_date:   date | None = None,
 ) -> None:
     if market_name not in MARKET_SUPPORTED:
         raise ValueError(f"exchange {market_name} not supported")
@@ -150,7 +149,7 @@ def load_all_stock_daily_hist(
             logger.error(f"Market {market_name} not in database")
 
 
-def refresh_stock_daily(engine: Engine, today: Optional[date] = None) -> None:
+def refresh_stock_daily(engine: Engine, today: date | None = None) -> None:
     if today is None:
         today = previous_trade_day(date.today(), inclusive=True)
 
@@ -166,7 +165,7 @@ def refresh_stock_daily(engine: Engine, today: Optional[date] = None) -> None:
         data_stock_codes = set(df['code'])
         stock_codes_to_handle = data_stock_codes.difference(db_stock_codes)
         for code in stock_codes_to_handle:
-            # TODO 
+            # TODO
             # dynamic handle
             # query stock info change
             logger.warning(f"stock {code} returned not availabe in database")
@@ -224,7 +223,7 @@ def refresh_stock_daily(engine: Engine, today: Optional[date] = None) -> None:
             logger.error(f"Error in committing daily data for {today.isoformat()}: {e}")
 
 
-def refresh_collection_daily(engine: Engine, collection_type: CollectionType, today: Optional[date] = None) -> None:
+def refresh_collection_daily(engine: Engine, collection_type: CollectionType, today: date | None = None) -> None:
     if today is None:
         today = previous_trade_day(date.today(), inclusive=True)
 
@@ -239,7 +238,7 @@ def refresh_collection_daily(engine: Engine, collection_type: CollectionType, to
         data_collection_codes = set(df['code'])
         collection_codes_to_handle = data_collection_codes.difference(db_collection_codes)
         for code in collection_codes_to_handle:
-            # TODO 
+            # TODO
             # dynamic handle
             # query stock info change
             logger.warning(f"collection {code} returned not availabe in database")
@@ -301,7 +300,7 @@ if __name__ == '__main__':
     # for market_name in MARKET_SUPPORTED:
     #     load_all_stocks(engine, market_name)
 
-    # load 
+    # load
     # daily data for the past 2 years
     # or
     # today's data

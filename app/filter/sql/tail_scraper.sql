@@ -1,6 +1,6 @@
 --
 -- for dbms that support lateral
-WITH static_filtering AS 
+WITH static_filtering AS
 (
         -- static_filtering_cte
         SELECT
@@ -18,24 +18,24 @@ WITH static_filtering AS
 
                 -- T2
                 sd.quantity_relative_ratio >= 1.0 AND
-                
+
                 -- T3
                 sd.turnover_rate > 5.0 AND
 
                 -- T4
                 sd.circulation_capital BETWEEN 2_0000_0000 AND 200_0000_0000 AND
-                
+
                 -- T6
                 s.name NOT LIKE '%ST%' AND
                 s.name NOT LIKE '%*%' AND
-                
+
                 -- T7
                 sd.low > sd.ma_250 AND
 
                 -- T8
                 sd.close > sd.open
 )
-SELECT 
+SELECT
         sf.code                                 AS code,
         sf.name                                 AS name,
         c.name                                  AS collection_name,
@@ -49,7 +49,7 @@ SELECT
         sf.volume                               AS volume
 FROM static_filtering sf
 
-JOIN LATERAL 
+JOIN LATERAL
 (
         -- prev_subq
         SELECT close
@@ -60,14 +60,14 @@ JOIN LATERAL
         LIMIT 1
 ) prev ON true
 
-JOIN LATERAL 
+JOIN LATERAL
 (
         -- prev_volume_subq
-        SELECT 
+        SELECT
        (
                 -- prev_volume_avg_expr
                 SELECT AVG(volume)
-                FROM 
+                FROM
                 (
                         -- prev_volume_innermost
                         SELECT volume
@@ -78,7 +78,7 @@ JOIN LATERAL
                         LIMIT 5
                 ) AS prev_volume_innermost
        ) AS ma5_volume,
-       (        
+       (
                 -- prev_volume_volume_expr
                 SELECT volume
                 FROM stock_daily
@@ -93,7 +93,7 @@ JOIN LATERAL
 
 JOIN relation_collection_stock  rcs     ON sf.code = rcs.stock_code
 JOIN collection                 c       ON c.code = rcs.collection_code
-JOIN collection_daily           cd      ON c.code = cd.code AND sf.trade_day = cd.trade_day 
+JOIN collection_daily           cd      ON c.code = cd.code AND sf.trade_day = cd.trade_day
 
 -- T1
 WHERE   100.0 * (sf.close / prev.close - 1) BETWEEN 3 AND 5
@@ -109,7 +109,7 @@ ORDER BY collection_performance DESC;
 
 --
 -- for dbms that supports materialized view
-SELECT 
+SELECT
         sd.code                                                                 AS code,
         s.name                                                                  AS name,
         c.name                                                                  AS collection_name,
@@ -127,17 +127,17 @@ JOIN stock_daily                sd      ON prev.code = sd.code
 JOIN stock                      s       ON sd.code = s.code
 JOIN relation_collection_stock  rcs     ON s.code = rcs.stock_code
 JOIN collection                 c       ON c.code = rcs.collection_code
-JOIN collection_daily           cd      ON c.code = cd.code AND sd.trade_day = cd.trade_day 
-WHERE 
+JOIN collection_daily           cd      ON c.code = cd.code AND sd.trade_day = cd.trade_day
+WHERE
         -- T0
         sd.trade_day = '2025-03-10' AND
 
         -- T1
         100.0 * (sd.close / prev.close - 1) BETWEEN 3 AND 5 AND
-        
+
         -- T2
         sd.quantity_relative_ratio >= 1.0 AND
-        
+
         -- T3
         sd.turnover_rate > 5.0 AND
 
@@ -147,11 +147,11 @@ WHERE
         -- T5
         prev.volume < prev.ma5_volume + (sd.volume - prev.prev_5_volume) / 5 AND
         sd.volume   > prev.ma5_volume + (sd.volume - prev.prev_5_volume) / 5 AND
-        
+
         -- T6
         s.name NOT LIKE '%ST%' AND
         s.name NOT LIKE '%*%' AND
-        
+
         -- T7
         sd.low > prev.ma250 + (sd.close - prev.prev_250_close) / 250 AND
 

@@ -3,11 +3,11 @@ SELECT
         s.code AS code,
         s.name AS name,
         sd.trade_day AS latest_trade_day
-FROM 
-        stock s 
-JOIN 
+FROM
+        stock s
+JOIN
         stock_daily sd ON s.code = sd.code
-WHERE sd.trade_day = 
+WHERE sd.trade_day =
 (
         SELECT trade_day
         FROM stock_daily

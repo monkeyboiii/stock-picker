@@ -1,9 +1,11 @@
-import pytest
-import pandas as pd
 from datetime import date
 from decimal import Decimal
 
+import pandas as pd
+import pytest
+
 from app.db.ingest import refresh_stock_daily
+
 
 # --- Dummy Classes for Session and Engine ---
 
@@ -85,20 +87,20 @@ def test_refresh_stock_daily_sqlite(dummy_session, dummy_df, monkeypatch):
     """
     # Patch pull_stock_daily so that it returns our dummy DataFrame.
     monkeypatch.setattr("app.utils.ingest.pull_stock_daily", lambda: dummy_df)
-    
+
     # Create a dummy engine with a dialect name that is not 'postgresql'
     engine = DummyEngine("sqlite")
-    
+
     # Call the function under test.
     refresh_stock_daily(engine)
-    
+
     # Verify that commit() was called.
     assert dummy_session.commit_called is True
-    
+
     # In the non-postgresql branch, merge() is called for each row.
     # Since our dummy DataFrame has 1 row, we expect one merge.
     assert len(dummy_session.merges) == 2
-    
+
     # Inspect the merged object.
     merged_stock = dummy_session.merges[0]
     today = date.today()
@@ -129,16 +131,16 @@ def test_refresh_stock_daily_postgresql(dummy_df, monkeypatch):
     # Create a dummy session instance.
     session = DummySession()
     monkeypatch.setattr("app.utils.ingest.Session", lambda engine: session)
-    
+
     # Patch pull_stock_daily to return our dummy DataFrame.
     monkeypatch.setattr("app.utils.ingest.pull_stock_daily", lambda: dummy_df)
-    
+
     # Create a dummy engine with dialect 'postgresql'
     engine = DummyEngine("postgresql")
-    
+
     # Call the function.
     refresh_stock_daily(engine)
-    
+
     # In the postgresql branch, no merge() should be called.
     assert session.commit_called is True
     assert len(session.merges) == 0
@@ -152,15 +154,15 @@ def test_refresh_stock_daily_exception(dummy_df, monkeypatch):
     # Use a session that raises an exception on commit.
     session = ExceptionDummySession()
     monkeypatch.setattr("app.utils.ingest.Session", lambda engine: session)
-    
+
     # Patch pull_stock_daily to return our dummy DataFrame.
     monkeypatch.setattr("app.utils.ingest.pull_stock_daily", lambda: dummy_df)
-    
+
     # Use any engine (dialect doesn't matter here).
     engine = DummyEngine("sqlite")
-    
+
     # Call refresh_stock_daily. The exception from commit() should be caught.
     refresh_stock_daily(engine)
-    
+
     # Verify that rollback() was called.
     assert session.rollback_called is True
