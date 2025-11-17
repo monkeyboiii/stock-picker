@@ -102,10 +102,11 @@ async def root():
 
 
 # Import and include routers
-from app.api.routes import backtest, strategies
+from app.api.routes import backtest, strategies, websocket
 
 app.include_router(backtest.router, prefix="/api/v1", tags=["Backtests"])
 app.include_router(strategies.router, prefix="/api/v1", tags=["Strategies"])
+app.include_router(websocket.router, prefix="/api/v1", tags=["WebSocket"])
 
 
 if __name__ == "__main__":
