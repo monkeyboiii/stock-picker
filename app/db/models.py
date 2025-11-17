@@ -4,7 +4,9 @@ from datetime import datetime
 
 from pandas import DataFrame
 from sqlalchemy import (
+    ARRAY,
     BigInteger,
+    Boolean,
     Date,
     DateTime,
     Float,
@@ -13,10 +15,12 @@ from sqlalchemy import (
     Numeric,
     PrimaryKeyConstraint,
     String,
+    Text,
     Time,
     UniqueConstraint,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSON, UUID
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import Enum as SQLAlchemyEnum
@@ -256,6 +260,215 @@ class FeedDaily(MetadataBase):
         ]
         # return [df.columns.get_loc(col) for col in columns] # type: ignore
         return columns
+
+
+class Strategy(MetadataBase):
+    '''
+    Stores strategy definitions for backtesting.
+
+    A strategy defines entry/exit conditions, risk management rules,
+    and position sizing logic using JSON/YAML format.
+    '''
+
+    __tablename__ = 'strategy'
+    __table_args__ = UniqueConstraint("name", "version"),
+
+    id:                         Mapped[str]         = mapped_column(UUID(as_uuid=False), primary_key=True, server_default=func.gen_random_uuid())
+    name:                       Mapped[str]         = mapped_column(String(255))
+    version:                    Mapped[str]         = mapped_column(String(50))
+    author:                     Mapped[str]         = mapped_column(String(255), nullable=True)
+    description:                Mapped[str]         = mapped_column(Text, nullable=True)
+
+    # Strategy definition as JSON
+    definition:                 Mapped[dict]        = mapped_column(JSON, nullable=False)
+
+    # Metadata
+    created_at:                 Mapped[DateTime]    = mapped_column(DateTime, server_default=func.now())
+    updated_at:                 Mapped[DateTime]    = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    is_active:                  Mapped[bool]        = mapped_column(Boolean, default=True)
+
+    # Relationships
+    backtest_runs:              Mapped[list["BacktestRun"]] = relationship("BacktestRun", back_populates="strategy")
+
+
+class BacktestRun(MetadataBase):
+    '''
+    Stores backtest run configuration and results.
+
+    Each run represents a single execution of a strategy over a date range.
+    Results (total_return, sharpe_ratio, etc.) are computed after completion.
+    '''
+
+    __tablename__ = 'backtest_run'
+
+    id:                         Mapped[str]         = mapped_column(UUID(as_uuid=False), primary_key=True, server_default=func.gen_random_uuid())
+    strategy_id:                Mapped[str]         = mapped_column(UUID(as_uuid=False), ForeignKey('strategy.id'))
+
+    # Date range
+    start_date:                 Mapped[Date]        = mapped_column(Date)
+    end_date:                   Mapped[Date]        = mapped_column(Date)
+    initial_capital:            Mapped[Numeric]     = mapped_column(Numeric(15, 2), default=1000000.00)
+
+    # Configuration
+    commission_rate:            Mapped[Numeric]     = mapped_column(Numeric(5, 4), default=0.0003)  # 0.03%
+    slippage_rate:              Mapped[Numeric]     = mapped_column(Numeric(5, 4), default=0.001)   # 0.1%
+
+    # Results (computed after run)
+    total_return:               Mapped[Numeric]     = mapped_column(Numeric(10, 4), nullable=True)
+    annualized_return:          Mapped[Numeric]     = mapped_column(Numeric(10, 4), nullable=True)
+    sharpe_ratio:               Mapped[Numeric]     = mapped_column(Numeric(10, 4), nullable=True)
+    sortino_ratio:              Mapped[Numeric]     = mapped_column(Numeric(10, 4), nullable=True)
+    calmar_ratio:               Mapped[Numeric]     = mapped_column(Numeric(10, 4), nullable=True)
+    max_drawdown:               Mapped[Numeric]     = mapped_column(Numeric(10, 4), nullable=True)
+    volatility:                 Mapped[Numeric]     = mapped_column(Numeric(10, 4), nullable=True)
+    win_rate:                   Mapped[Numeric]     = mapped_column(Numeric(5, 4), nullable=True)
+    profit_factor:              Mapped[Numeric]     = mapped_column(Numeric(10, 4), nullable=True)
+    total_trades:               Mapped[int]         = mapped_column(Integer, nullable=True)
+
+    # Status
+    status:                     Mapped[str]         = mapped_column(String(20), default='pending')  # pending, running, completed, failed
+    error_message:              Mapped[str]         = mapped_column(Text, nullable=True)
+
+    # Timestamps
+    started_at:                 Mapped[DateTime]    = mapped_column(DateTime, nullable=True)
+    completed_at:               Mapped[DateTime]    = mapped_column(DateTime, nullable=True)
+    created_at:                 Mapped[DateTime]    = mapped_column(DateTime, server_default=func.now())
+
+    # Relationships
+    strategy:                   Mapped["Strategy"]  = relationship("Strategy", back_populates="backtest_runs")
+    trades:                     Mapped[list["Trade"]] = relationship("Trade", back_populates="backtest_run", cascade="all, delete-orphan")
+    portfolio_snapshots:        Mapped[list["PortfolioSnapshot"]] = relationship("PortfolioSnapshot", back_populates="backtest_run", cascade="all, delete-orphan")
+
+
+class Trade(MetadataBase):
+    '''
+    Stores individual trade records from backtests.
+
+    Each trade represents a complete round trip: entry -> exit.
+    Includes P&L calculation with costs (commission, slippage).
+    '''
+
+    __tablename__ = 'trade'
+
+    id:                         Mapped[int]         = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    backtest_run_id:            Mapped[str]         = mapped_column(UUID(as_uuid=False), ForeignKey('backtest_run.id', ondelete='CASCADE'))
+    stock_code:                 Mapped[str]         = mapped_column(String(10))
+    stock_name:                 Mapped[str]         = mapped_column(String(50), nullable=True)
+
+    # Entry
+    entry_date:                 Mapped[Date]        = mapped_column(Date)
+    entry_price:                Mapped[Numeric]     = mapped_column(Numeric(10, 3))
+    entry_signal:               Mapped[str]         = mapped_column(Text, nullable=True)  # JSON of matched conditions
+
+    # Exit
+    exit_date:                  Mapped[Date]        = mapped_column(Date, nullable=True)
+    exit_price:                 Mapped[Numeric]     = mapped_column(Numeric(10, 3), nullable=True)
+    exit_reason:                Mapped[str]         = mapped_column(String(50), nullable=True)  # take_profit, stop_loss, time_limit, signal
+
+    # Position
+    shares:                     Mapped[int]         = mapped_column(Integer)
+    position_value:             Mapped[Numeric]     = mapped_column(Numeric(15, 2), nullable=True)
+
+    # P&L
+    gross_pnl:                  Mapped[Numeric]     = mapped_column(Numeric(15, 2), nullable=True)
+    commission:                 Mapped[Numeric]     = mapped_column(Numeric(15, 2), nullable=True)
+    slippage:                   Mapped[Numeric]     = mapped_column(Numeric(15, 2), nullable=True)
+    net_pnl:                    Mapped[Numeric]     = mapped_column(Numeric(15, 2), nullable=True)
+    return_pct:                 Mapped[Numeric]     = mapped_column(Numeric(10, 4), nullable=True)
+
+    # Metadata
+    holding_days:               Mapped[int]         = mapped_column(Integer, nullable=True)
+    collection_name:            Mapped[str]         = mapped_column(String(100), nullable=True)
+
+    created_at:                 Mapped[DateTime]    = mapped_column(DateTime, server_default=func.now())
+
+    # Relationships
+    backtest_run:               Mapped["BacktestRun"] = relationship("BacktestRun", back_populates="trades")
+
+
+class PortfolioSnapshot(MetadataBase):
+    '''
+    Stores daily portfolio state during backtests.
+
+    Captures cash, holdings value, and performance metrics for each trading day.
+    Used to generate equity curves and calculate drawdowns.
+    '''
+
+    __tablename__ = 'portfolio_snapshot'
+    __table_args__ = UniqueConstraint("backtest_run_id", "snapshot_date"),
+
+    id:                         Mapped[int]         = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    backtest_run_id:            Mapped[str]         = mapped_column(UUID(as_uuid=False), ForeignKey('backtest_run.id', ondelete='CASCADE'))
+    snapshot_date:              Mapped[Date]        = mapped_column(Date)
+
+    # Portfolio value
+    cash:                       Mapped[Numeric]     = mapped_column(Numeric(15, 2))
+    holdings_value:             Mapped[Numeric]     = mapped_column(Numeric(15, 2))
+    total_value:                Mapped[Numeric]     = mapped_column(Numeric(15, 2))
+
+    # Daily metrics
+    daily_return:               Mapped[Numeric]     = mapped_column(Numeric(10, 4), nullable=True)
+    cumulative_return:          Mapped[Numeric]     = mapped_column(Numeric(10, 4), nullable=True)
+    drawdown:                   Mapped[Numeric]     = mapped_column(Numeric(10, 4), nullable=True)
+
+    # Positions
+    open_positions:             Mapped[int]         = mapped_column(Integer, nullable=True)
+    total_positions_opened:     Mapped[int]         = mapped_column(Integer, nullable=True)
+    total_positions_closed:     Mapped[int]         = mapped_column(Integer, nullable=True)
+
+    created_at:                 Mapped[DateTime]    = mapped_column(DateTime, server_default=func.now())
+
+    # Relationships
+    backtest_run:               Mapped["BacktestRun"] = relationship("BacktestRun", back_populates="portfolio_snapshots")
+
+
+class StrategyComparison(MetadataBase):
+    '''
+    Stores groups of backtest runs for side-by-side comparison.
+
+    Allows users to compare multiple strategies or parameter variations.
+    Includes comparison results and statistical significance tests.
+    '''
+
+    __tablename__ = 'strategy_comparison'
+
+    id:                         Mapped[str]         = mapped_column(UUID(as_uuid=False), primary_key=True, server_default=func.gen_random_uuid())
+    name:                       Mapped[str]         = mapped_column(String(255))
+    created_at:                 Mapped[DateTime]    = mapped_column(DateTime, server_default=func.now())
+
+    # Comparison metadata
+    num_strategies:             Mapped[int]         = mapped_column(Integer)
+    metrics_compared:           Mapped[list]        = mapped_column(JSON, nullable=True)  # JSON for SQLite compatibility
+
+    # Results (stored as JSONB for flexibility)
+    comparison_results:         Mapped[dict]        = mapped_column(JSON)
+    statistical_tests:          Mapped[dict]        = mapped_column(JSON, nullable=True)
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialization"""
+        return {
+            "id": str(self.id),
+            "name": self.name,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "num_strategies": self.num_strategies,
+            "metrics_compared": self.metrics_compared,
+            "comparison_results": self.comparison_results,
+            "statistical_tests": self.statistical_tests,
+        }
+
+
+class ComparisonBacktestRun(MetadataBase):
+    '''
+    Junction table linking strategy comparisons to backtest runs.
+
+    Stores rank and additional metadata for each run in a comparison.
+    '''
+
+    __tablename__ = 'comparison_backtest_run'
+
+    comparison_id:              Mapped[str]         = mapped_column(UUID(as_uuid=False), ForeignKey('strategy_comparison.id', ondelete='CASCADE'), primary_key=True)
+    backtest_run_id:            Mapped[str]         = mapped_column(UUID(as_uuid=False), ForeignKey('backtest_run.id', ondelete='CASCADE'), primary_key=True)
+    rank:                       Mapped[int]         = mapped_column(Integer, nullable=True)
 
 
 if __name__ == "__main__":

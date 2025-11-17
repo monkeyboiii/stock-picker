@@ -1,0 +1,84 @@
+strategy:
+  name: Tail Scraper
+  version: 2.0.0
+  author: system
+  description: |
+    Enhanced tail scraper strategy using the DSL.
+    Original T2-T8 filters reimplemented with flexible parameters.
+
+  parameters:
+    # Volume filters
+    volume_ratio_min: 1.0
+    turnover_rate_min: 5.0
+
+    # Market cap filters (in units of 万元)
+    cap_min: 200000000      # 20M CNY
+    cap_max: 20000000000    # 2B CNY
+
+    # Moving average
+    ma_period: 250
+
+    # Exit conditions
+    take_profit_pct: 10.0
+    stop_loss_pct: -5.0
+    max_hold_days: 30
+
+  entry_conditions:
+    operator: AND
+    conditions:
+      # T2: Quantity relative ratio >= 1.0
+      - type: indicator
+        name: quantity_relative_ratio
+        comparison: ">="
+        value: "{{volume_ratio_min}}"
+
+      # T3: Turnover rate > 5.0%
+      - type: indicator
+        name: turnover_rate
+        comparison: ">"
+        value: "{{turnover_rate_min}}"
+
+      # T4: Circulation capital between 20M - 2B
+      - type: market_cap
+        field: circulation_capital
+        comparison: between
+        value: ["{{cap_min}}", "{{cap_max}}"]
+
+      # T6: Exclude ST stocks and stocks with "*"
+      - type: risk_filter
+        exclude: ["ST", "*"]
+
+      # T7: MA250 exists and low > MA250
+      - type: technical
+        indicator: ma
+        period: "{{ma_period}}"
+        comparison: ">"
+        target: low
+
+      # T8: Close > Open (positive day)
+      - type: price_direction
+        comparison: "close > open"
+
+  exit_conditions:
+    operator: OR
+    conditions:
+      - type: take_profit
+        method: percentage
+        value: "{{take_profit_pct}}"
+
+      - type: stop_loss
+        method: percentage
+        value: "{{stop_loss_pct}}"
+
+      - type: time_based
+        max_holding_days: "{{max_hold_days}}"
+
+  position_sizing:
+    method: equal_weight
+    max_positions: 20
+    capital_per_position: "1/max_positions"
+
+  risk_management:
+    max_portfolio_drawdown: 20.0
+    max_position_size: 10.0
+    stop_trading_on_drawdown: true
