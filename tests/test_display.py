@@ -44,7 +44,7 @@ class TestTenThousandFormat:
 
     def test_format_large_numbers(self):
         """Test formatting very large numbers."""
-        assert ten_thousand_format(1234567890123) == '12,3456,7890,0123'
+        assert ten_thousand_format(1234567890123) == '1,2345,6789,0123'
         assert ten_thousand_format(99999999) == '9999,9999'
 
     def test_format_edge_cases(self):
