@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS strategy_comparison (
 
     -- Comparison metadata
     num_strategies INTEGER NOT NULL,
-    metrics_compared TEXT[], -- Array of metric names
+    metrics_compared JSONB, -- Array of metric names (stored as JSON for compatibility)
 
     -- Results (stored as JSONB for flexibility)
     comparison_results JSONB NOT NULL,

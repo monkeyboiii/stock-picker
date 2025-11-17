@@ -143,12 +143,12 @@ class PerformanceAnalyzer:
         avg_loss = gross_loss / len(losing_trades) if losing_trades else Decimal(0)
 
         largest_win = (
-            max(Decimal(str(t["return_pct"])) for t in winning_trades)
+            max(Decimal(str(t.get("return_pct", 0))) for t in winning_trades)
             if winning_trades
             else Decimal(0)
         )
         largest_loss = (
-            min(Decimal(str(t["return_pct"])) for t in losing_trades)
+            min(Decimal(str(t.get("return_pct", 0))) for t in losing_trades)
             if losing_trades
             else Decimal(0)
         )
@@ -276,11 +276,18 @@ class PerformanceAnalyzer:
         turnover_rate = Decimal(total_trades) / years if years > 0 else Decimal(0)
 
         # Cumulative returns
-        cumulative_returns = (
-            [Decimal(str(s["cumulative_return"])) for s in equity_curve]
-            if equity_curve
-            else [Decimal(0)]
-        )
+        cumulative_returns = []
+        if equity_curve:
+            for s in equity_curve:
+                if "cumulative_return" in s:
+                    cumulative_returns.append(Decimal(str(s["cumulative_return"])))
+                else:
+                    # Calculate cumulative return if not provided
+                    total_value = Decimal(str(s.get("total_value", initial_capital)))
+                    cum_ret = ((total_value - initial_capital) / initial_capital) * 100
+                    cumulative_returns.append(cum_ret)
+        else:
+            cumulative_returns = [Decimal(0)]
 
         logger.debug(
             f"Metrics calculated: Return={total_return:.2f}%, Sharpe={sharpe_ratio:.2f}, MaxDD={max_drawdown:.2f}%"

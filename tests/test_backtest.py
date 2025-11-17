@@ -354,6 +354,7 @@ class TestStrategyBuilder:
 class TestStrategyDatabase:
     """Tests for strategy database operations"""
 
+    @pytest.mark.integration
     def test_create_strategy(self, db_session, in_memory_engine):
         """Test creating a strategy in database"""
         from app.backtest.strategy import create_strategy
@@ -369,6 +370,7 @@ class TestStrategyDatabase:
 
         assert strategy_id is not None
 
+    @pytest.mark.integration
     def test_get_strategy(self, in_memory_engine):
         """Test retrieving a strategy from database"""
         from app.backtest.strategy import create_strategy, get_strategy

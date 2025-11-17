@@ -438,7 +438,7 @@ class StrategyComparison(MetadataBase):
 
     # Comparison metadata
     num_strategies:             Mapped[int]         = mapped_column(Integer)
-    metrics_compared:           Mapped[list]        = mapped_column(ARRAY(String), nullable=True)
+    metrics_compared:           Mapped[list]        = mapped_column(JSON, nullable=True)  # JSON for SQLite compatibility
 
     # Results (stored as JSONB for flexibility)
     comparison_results:         Mapped[dict]        = mapped_column(JSON)
