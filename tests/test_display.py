@@ -1,11 +1,10 @@
 """
 Tests for display utilities in app/display/utils.py
 """
-import pytest
 import pandas as pd
 from gspread_formatting import Color
 
-from app.display.utils import ten_thousand_format, get_color_for_column
+from app.display.utils import get_color_for_column, ten_thousand_format
 
 
 class TestTenThousandFormat:

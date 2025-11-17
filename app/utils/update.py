@@ -1,12 +1,10 @@
-from typing import Optional
 from datetime import date
 
 from loguru import logger
-from sqlalchemy import select, update, func, true, and_
-from sqlalchemy import Select
+from sqlalchemy import Select, and_, func, select, true, update
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import lateral
-from sqlalchemy.engine import Engine
 
 from app.constant.schedule import is_stock_market_open
 from app.db.engine import engine_from_env
@@ -41,7 +39,7 @@ def build_stmt_postgresql(trade_day: date) -> Select:
         select(func.count(last_250_inner_subq.c.close))
             .scalar_subquery()
     ).label("row_count")
-    
+
     # lateral query
     lateral_query = (
         select(
@@ -77,7 +75,7 @@ def build_stmt_postgresql(trade_day: date) -> Select:
 
 
 @trace_elapsed(unit='s')
-def calculate_ma250(engine: Engine, trade_day: Optional[date] = None, dryrun: Optional[bool] = False) -> None:
+def calculate_ma250(engine: Engine, trade_day: date | None = None, dryrun: bool | None = False) -> None:
     if trade_day is None:
         trade_day = date.today()
 
@@ -85,7 +83,7 @@ def calculate_ma250(engine: Engine, trade_day: Optional[date] = None, dryrun: Op
 
     # build query
     if engine.dialect.name == 'postgresql':
-        stmt = build_stmt_postgresql(trade_day) 
+        stmt = build_stmt_postgresql(trade_day)
     else:
         raise Exception("Not implemented!")
     logger.debug(stmt.compile(engine, compile_kwargs={"literal_binds": True}))
@@ -100,7 +98,7 @@ def calculate_ma250(engine: Engine, trade_day: Optional[date] = None, dryrun: Op
 
         ma_250_dict = {row['code']: row['ma_250'] for row in results}
 
-        session.execute(update(StockDaily), 
+        session.execute(update(StockDaily),
             [
                 {'code': code, 'trade_day': trade_day, 'ma_250': value}
                 for code, value in ma_250_dict.items()
@@ -112,7 +110,7 @@ def calculate_ma250(engine: Engine, trade_day: Optional[date] = None, dryrun: Op
         logger.success(f"Updated a total of {len(results)} ma_250 for {trade_day} in db")
 
 
-def calculate_ma250_materialized_view(engine: Engine, trade_day: Optional[date] = None, dryrun: Optional[bool] = False) -> None:
+def calculate_ma250_materialized_view(engine: Engine, trade_day: date | None = None, dryrun: bool | None = False) -> None:
     pass
 
 
@@ -125,7 +123,7 @@ if __name__ == '__main__':
 
     trade_day = previous_trade_day(date(2025, 2, 21))
     calculate_ma250(
-        engine_from_env(), 
-        trade_day, 
+        engine_from_env(),
+        trade_day,
         dryrun=False,
     )

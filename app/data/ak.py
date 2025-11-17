@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal
 
-import akshare as ak # type: ignore
+import akshare as ak  # type: ignore
 from pandas import DataFrame, notna
 
 from app.constant.collection import CollectionType
@@ -202,24 +202,24 @@ def pull_collection_daily(cType: CollectionType) -> DataFrame:
 if __name__ == '__main__':
     # df = pull_stocks(SEX_SHANGHAI)
     # print(df.head(10))
-    
+
     df = pull_stocks(SEX_CHINA_MAINLAND)
     print(df.shape)
     print(df.head(10))
 
     # df_collections = pull_collections(CollectionType.INDUSTRY_BOARD)
     # print(df_collections.head(10))
-    
+
     # df_sic = pull_stocks_in_collection(CollectionType.INDUSTRY_BOARD, '小金属')
     # print(df_sic.head(10))
-    
+
     # df_daily = pull_stock_daily()
     # print(df_daily.head(10))
 
     # df_daily_hist = pull_stock_daily_hist(
-    #     '870508', 
-    #     date(2024, 1, 1), 
-    #     date(2024, 1, 31), 
+    #     '870508',
+    #     date(2024, 1, 1),
+    #     date(2024, 1, 31),
     #     'qfq'
     # )
     # print(df_daily_hist.head(10))

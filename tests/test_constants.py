@@ -1,16 +1,17 @@
 """
 Tests for constant modules in app/constant/
 """
+from datetime import date
+
 import pytest
-from datetime import date, timedelta
 
 from app.constant.collection import CollectionType
 from app.constant.exchange import MARKET_SUPPORTED
 from app.constant.schedule import (
+    CHINA_MAINLAND_HOLIDAYS,
     is_stock_market_open,
-    previous_trade_day,
     next_trade_day,
-    CHINA_MAINLAND_HOLIDAYS
+    previous_trade_day,
 )
 
 

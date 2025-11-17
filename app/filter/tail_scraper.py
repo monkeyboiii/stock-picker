@@ -1,23 +1,21 @@
-from typing import List, Optional
 from datetime import date
 
-from sqlalchemy import select, func, and_, true
-from sqlalchemy import Table, Double
-from sqlalchemy.orm import Session
-from sqlalchemy.sql import lateral, Select
-from sqlalchemy.engine import Engine
 from loguru import logger
+from sqlalchemy import Double, Table, and_, func, select, true
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
+from sqlalchemy.sql import Select, lateral
 
 from app.constant.schedule import previous_trade_day
-from app.db.materialized_view import get_mv_stock_daily_name, check_mv_exists
+from app.db.materialized_view import check_mv_exists, get_mv_stock_daily_name
 from app.db.models import (
-    MetadataBase,
-    RelationCollectionStock,
     Collection,
     CollectionDaily,
+    FeedDaily,
+    MetadataBase,
+    RelationCollectionStock,
     Stock,
     StockDaily,
-    FeedDaily,
 )
 from app.filter.misc import StockFilter, get_filter_id
 from app.profile.tracer import trace_elapsed
@@ -232,7 +230,7 @@ def build_stmt_postgresql_mv(mv_stock_daily: Table, trade_day: date) -> Select:
     return stmt
 
 
-def build_stmt_postgresql(engine: Engine, trade_day: date, materialized: Optional[bool] = True) -> Select:
+def build_stmt_postgresql(engine: Engine, trade_day: date, materialized: bool | None = True) -> Select:
     if materialized and check_mv_exists(engine, trade_day, previous=True):
         mv_stock_daily = Table(get_mv_stock_daily_name(), MetadataBase.metadata, autoload_with=engine)
         logger.debug("Filter using materialized view")
@@ -243,7 +241,7 @@ def build_stmt_postgresql(engine: Engine, trade_day: date, materialized: Optiona
 
 
 @trace_elapsed()
-def filter_desired(engine: Engine, trade_day: Optional[date] = None, materialized: Optional[bool] = True) -> List[FeedDaily]:
+def filter_desired(engine: Engine, trade_day: date | None = None, materialized: bool | None = True) -> list[FeedDaily]:
     output = []
 
     if trade_day is None:
@@ -259,7 +257,7 @@ def filter_desired(engine: Engine, trade_day: Optional[date] = None, materialize
         results = session.execute(filter_stmt)
         for result in results:
             fd = FeedDaily(
-                filter_id=get_filter_id(StockFilter.TAIL_SCRAPER), 
+                filter_id=get_filter_id(StockFilter.TAIL_SCRAPER),
                 **result._mapping,
             )
             output.append(fd)
@@ -269,7 +267,7 @@ def filter_desired(engine: Engine, trade_day: Optional[date] = None, materialize
 
 if __name__ == "__main__":
     from app.db.engine import engine_from_env
-    
+
     trade_day = date(2025, 3, 3)
     df = filter_desired(engine=engine_from_env(), trade_day=trade_day, dryrun=True)
 

@@ -1,8 +1,8 @@
 """
 Tests for database engine creation in app/db/engine.py
 """
+
 import pytest
-import os
 from sqlalchemy.engine import Engine
 
 from app.db.engine import engine_from_env

@@ -1,15 +1,14 @@
 """
 Tests for filter utilities in app/filter/
 """
-import pytest
 
 from app.filter.misc import (
     StockFilter,
+    filter_to_id,
+    get_filter_canonical_name,
     get_filter_id,
     get_filter_name,
-    get_filter_canonical_name,
-    filter_to_id,
-    id_to_filter
+    id_to_filter,
 )
 
 

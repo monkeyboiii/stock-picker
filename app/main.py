@@ -2,7 +2,7 @@
 Stock Picker
 
 This application is designed to set up and run a stock picker that refreshes stock data,
-calculates moving averages, filters desired stocks based on certain criteria, and 
+calculates moving averages, filters desired stocks based on certain criteria, and
 displays them into configured output based on .env file.
 
 Since the applciation is designed to be run from different states of the database, it
@@ -13,46 +13,46 @@ Usage:
     Run this script to set up or run the stock picker.
 
 Example:
-    PYTHONPATH=. python 
+    PYTHONPATH=. python
 
 Author: monkeyboiii
 Date: 2025-02-01
 License: MIT
 """
 
+import argparse
+import json
 import os
 import sys
-import json
-import argparse
 from datetime import date, datetime, time
 
-from loguru import logger
 from dotenv import load_dotenv
+from loguru import logger
 
 from app.backtest.feed import refresh_feed_daily_table
 from app.constant.exchange import MARKET_SUPPORTED
-from app.constant.version import VERSION
 from app.constant.schedule import previous_trade_day
+from app.constant.version import VERSION
 from app.db.engine import engine_from_env
 from app.db.load import (
-    load_market, 
-    load_all_stocks, 
-    load_default_collections, 
-    load_collection_stock_relation,
+    load_all_stocks,
     load_by_level,
+    load_collection_stock_relation,
+    load_default_collections,
+    load_market,
 )
 from app.db.materialized_view import (
-    check_mv_exists, 
+    check_mv_exists,
     check_mv_procedure_exists,
     daily_create_mv,
 )
 from app.db.models import FeedDaily
-from app.display.tdx import add_to_tdx_path
 from app.display.google_sheet import add_df_to_new_sheet
+from app.display.tdx import add_to_tdx_path
 from app.filter.tail_scraper import filter_desired
 from app.utils.ingest import auto_fill
-from app.utils.update import calculate_ma250
 from app.utils.reset import reset_db_content
+from app.utils.update import calculate_ma250
 
 
 load_dotenv(override=True)
@@ -71,8 +71,8 @@ def build_parser():
     subparsers = parser.add_subparsers(dest="subcommand_name", help='subcommand help')
 
     #
-    # initialize database    
-    subparser_init = subparsers.add_parser('init', 
+    # initialize database
+    subparser_init = subparsers.add_parser('init',
                                            help='Initialize the database'
     )
     subparser_init.add_argument('-d', '--dryrun', action='store_true', default=False, help='Show table schema without initializing the database')
@@ -98,7 +98,7 @@ def build_parser():
     #
     # reset tables
     # TODO reset with backup, or for specific tables
-    subparser_reset = subparsers.add_parser('reset', 
+    subparser_reset = subparsers.add_parser('reset',
                                             help='Reset the database to the initial/clean state'
     )
     subparser_reset.add_argument('-b', '--backup',  help='Back up the database by dumping')
@@ -122,7 +122,7 @@ def main():
         logger.trace("-------------------- start tracing --------------------")
     if args.store_log:
         logger.add("full.log", level='DEBUG')
-        
+
     if args.supress:
         logger.add(sys.stdout, level="ERROR")
     elif args.quiet:
@@ -139,9 +139,9 @@ def main():
                 logger.add(sys.stdout, level="TRACE")
     logger.debug(f'Parsed args =\n{json.dumps(vars(args), sort_keys=True, indent=4)}')
 
-    # 
+    #
     match args.subcommand_name.strip():
-        
+
         ################################################################################
         case 'init':
             dryrun = args.dryrun
@@ -149,13 +149,13 @@ def main():
 
             reset_db_content(
                 engine=engine,
-                reset=args.reset, 
+                reset=args.reset,
                 dryrun=dryrun,
                 yes=args.yes,
             )
-            
+
             if not dryrun and args.load:
-                # load 
+                # load
                 # none 0
                 # market 1
                 # stocks 2
@@ -164,11 +164,11 @@ def main():
 
                 if args.ingest:
                     raise Exception("Not implemented yet!")
-        
+
         ################################################################################
-        case 'run':                
+        case 'run':
             engine = engine_from_env()
-            
+
             # args
             trade_day = previous_trade_day(date.fromisoformat(args.date))
             task = args.task.strip()
@@ -191,13 +191,13 @@ def main():
                             load_by_level(engine=engine, level=3)
                         case _:
                             logger.error(f"Unrecoginized load target {args.load}")
-                
+
                 ############################
                 case "ingest":
                     auto_fill(
-                        engine=engine, 
-                        up_to_date=trade_day, 
-                        skip_hist_fill=args.skip, 
+                        engine=engine,
+                        up_to_date=trade_day,
+                        skip_hist_fill=args.skip,
                         yes=args.yes
                     )
 
@@ -206,7 +206,7 @@ def main():
                     if args.materialized and check_mv_procedure_exists(engine):
                         if not check_mv_exists(engine, trade_day, previous=True):
                             daily_create_mv(engine=engine, trade_day=trade_day, previous=True)
-                        
+
                         # FIXME: change to market specific close time
                         now = datetime.now().time()
                         if now > time(15, 0) and not check_mv_exists(engine, trade_day, previous=False):
@@ -214,15 +214,15 @@ def main():
 
                     # TODO: fill from mv
                     calculate_ma250(
-                        engine=engine, 
-                        trade_day=trade_day, 
+                        engine=engine,
+                        trade_day=trade_day,
                         dryrun=dryrun
                     )
 
                 ############################
                 case "filter":
                     fds = filter_desired(
-                        engine=engine, 
+                        engine=engine,
                         trade_day=trade_day,
                         materialized=args.materialized,
                     )
@@ -242,7 +242,7 @@ def main():
                 ############################
                 case "display":
                     fds = filter_desired(
-                        engine=engine, 
+                        engine=engine,
                         trade_day=trade_day,
                         materialized=args.materialized,
                     )
@@ -253,7 +253,7 @@ def main():
                         trade_day=trade_day,
                     )
                     add_df_to_new_sheet(
-                        trade_day=trade_day, 
+                        trade_day=trade_day,
                         df=FeedDaily.convert_to_feed(df),
                         yes=args.yes
                     )
@@ -262,9 +262,9 @@ def main():
                 case 'all':
                     # ingest: assumes load is ready
                     auto_fill(
-                        engine=engine, 
-                        up_to_date=trade_day, 
-                        skip_hist_fill=args.skip, 
+                        engine=engine,
+                        up_to_date=trade_day,
+                        skip_hist_fill=args.skip,
                         yes=args.yes
                     )
 
@@ -275,20 +275,20 @@ def main():
                             using_mv = True
                         else:
                             using_mv = daily_create_mv(engine=engine, trade_day=trade_day, previous=True)
-                            
+
                         # FIXME: change to market specific close time
                         now = datetime.now().time()
                         if now > time(15, 0) and not check_mv_exists(engine, trade_day, previous=False):
                             _ = daily_create_mv(engine, trade_day, previous=False)
                     if not using_mv:
                         calculate_ma250(
-                            engine=engine, 
+                            engine=engine,
                             trade_day=trade_day
                         )
-                    
+
                     # filter
                     fds = filter_desired(
-                        engine=engine, 
+                        engine=engine,
                         trade_day=trade_day,
                         materialized=args.materialized,
                     )
@@ -303,7 +303,7 @@ def main():
 
                     # display
                     add_df_to_new_sheet(
-                        trade_day=trade_day, 
+                        trade_day=trade_day,
                         df=df,
                         yes=args.yes
                     )

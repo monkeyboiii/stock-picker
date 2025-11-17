@@ -1,9 +1,8 @@
 import re
 from math import log10
-from typing import Optional
 
+from gspread_formatting import Color  # type: ignore
 from pandas import Series
-from gspread_formatting import Color # type: ignore
 
 
 def ten_thousand_format(num):
@@ -15,18 +14,18 @@ def ten_thousand_format(num):
     This function also handles negative numbers and floats.
     """
     s = str(num)
-    
+
     negative = s.startswith('-')
     if negative:
         s = s[1:]
-    
+
     if '.' in s:
         integer_part, decimal_part = s.split('.')
     else:
         integer_part, decimal_part = s, None
 
     formatted_integer = re.sub(r'(?<=\d)(?=(\d{4})+$)', ',', integer_part)
-    
+
     formatted = formatted_integer if decimal_part is None else f"{formatted_integer}.{decimal_part}"
     if negative:
         formatted = '-' + formatted
@@ -36,15 +35,15 @@ def ten_thousand_format(num):
 def get_color_for_column(series_: Series) -> Series:
     """
     Return a gspread-formatting Color based on the value.
-    
+
     For positive values:
       - The red channel remains at 1.0.
       - The green and blue channels decrease as the value approaches max_val.
-    
+
     For negative values:
       - The green channel remains at 1.0.
       - The red and blue channels decrease as the value approaches min_val.
-    
+
     Zero (or near zero) will return white (1,1,1).
     """
 
@@ -59,8 +58,8 @@ def get_color_for_column(series_: Series) -> Series:
 
     def colorize(
         value: float,
-        cap: Optional[int] = 1,
-        threshold: Optional[float] = 0,
+        cap: int | None = 1,
+        threshold: float | None = 0,
     ) -> Color:
         threshold = threshold or 0
         base = 1.0
@@ -83,17 +82,17 @@ def get_color_for_column(series_: Series) -> Series:
             green = 1.0
             red = round(base - adjust(fraction * base) * cap, 3)
             blue = round(base - adjust(fraction * base) * cap, 3)
-            
+
             return Color(red=red, green=green, blue=blue)
         else:
             return Color(red=1.0, green=1.0, blue=1.0)
-    
+
     return Series([colorize(value) for value in series])
 
 
 if __name__ == '__main__':
     series = Series([
-        35.28, 30.28, 63.04, 79.88, 114.82, 78.21, 334.85, 31.85, 99.47, 128.54, 
+        35.28, 30.28, 63.04, 79.88, 114.82, 78.21, 334.85, 31.85, 99.47, 128.54,
         45.04, 48.79, 63.45, 20.04, 63.56, 174.84, 95.98, 28.15, 490.30, 86.22,
     ])
     color_series = get_color_for_column(series_=series)

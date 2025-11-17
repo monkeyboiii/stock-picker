@@ -1,5 +1,4 @@
 from datetime import date
-from typing import Optional
 
 from loguru import logger
 from sqlalchemy import text
@@ -14,14 +13,14 @@ MV_STOCK_DAILY = 'mv_stock_daily'
 
 
 CREATE_MV_FUNCTION_SQL = f"""
-CREATE OR REPLACE FUNCTION create_mv_with_trade_day(input_trade_day DATE) 
+CREATE OR REPLACE FUNCTION create_mv_with_trade_day(input_trade_day DATE)
 RETURNS boolean AS
 $$
 DECLARE
   exists_result boolean;
 BEGIN
         EXECUTE format(
-                'DROP MATERIALIZED VIEW IF EXISTS %s;', 
+                'DROP MATERIALIZED VIEW IF EXISTS %s;',
                 '{MV_STOCK_DAILY}_' || replace(input_trade_day::text, '-', '_')
         );
 
@@ -39,14 +38,14 @@ SELECT
         volume_ma5_subq.volume          AS prev_5_volume        -- volume 5 days ago
 FROM stock_daily sd
 
-JOIN LATERAL 
+JOIN LATERAL
 (
         -- ma250_subq
-        SELECT 
+        SELECT
         (
                 -- ma250_expr
                 SELECT AVG(close)
-                FROM 
+                FROM
                 (
                         -- ma250_innermost
                         SELECT close
@@ -59,7 +58,7 @@ JOIN LATERAL
         ) AS ma250,
         (
                 SELECT COUNT(close)
-                FROM 
+                FROM
                 (
                         -- ma250_innermost
                         SELECT close
@@ -73,10 +72,10 @@ JOIN LATERAL
         (
                 -- ma250_expr
                 SELECT close
-                FROM 
+                FROM
                 (
                         -- ma250_innermost
-                        SELECT 
+                        SELECT
                                 close,
                                 trade_day
                         FROM stock_daily
@@ -85,7 +84,7 @@ JOIN LATERAL
                         ORDER BY trade_day DESC
                         LIMIT 250
                 ) AS ma250_innermost
-                ORDER BY trade_day ASC 
+                ORDER BY trade_day ASC
                 LIMIT 1
         ) AS close
         FROM stock_daily
@@ -95,11 +94,11 @@ JOIN LATERAL
 JOIN LATERAL
 (
         -- volume_ma5_subq
-        SELECT 
+        SELECT
         (
                 -- vol_ma5_expr
                 SELECT AVG(volume)
-                FROM 
+                FROM
                 (
                         -- volume_ma5_innermost
                         SELECT volume
@@ -113,10 +112,10 @@ JOIN LATERAL
         (
                 -- vol_ma5_volume_expr
                 SELECT volume
-                FROM 
+                FROM
                 (
                         -- volume_ma5_innermost
-                        SELECT 
+                        SELECT
                                 volume,
                                 trade_day
                         FROM stock_daily
@@ -132,9 +131,9 @@ JOIN LATERAL
         WHERE code = sd.code AND trade_day = sd.trade_day
 ) volume_ma5_subq ON true
 
-WHERE 
-        sd.trade_day = %L AND 
-        ma250_subq.row_count = 250;', 
+WHERE
+        sd.trade_day = %L AND
+        ma250_subq.row_count = 250;',
 
         -- %s
         '{MV_STOCK_DAILY}_' || replace(input_trade_day::text, '-', '_'),
@@ -180,7 +179,7 @@ SELECT EXISTS (
 """
 
 
-def get_mv_stock_daily_name(trade_day: Optional[date] = None, previous = False) -> str:
+def get_mv_stock_daily_name(trade_day: date | None = None, previous = False) -> str:
     if trade_day is None:
         trade_day = previous_trade_day(date.today(), inclusive=previous)
     elif previous:
@@ -206,7 +205,7 @@ def check_mv_procedure_exists(engine: Engine) -> bool:
 
 
 @trace_elapsed()
-def daily_create_mv(engine: Engine, trade_day: Optional[date] = None, previous = False) -> bool:
+def daily_create_mv(engine: Engine, trade_day: date | None = None, previous = False) -> bool:
     if trade_day is None:
         trade_day = previous_trade_day(date.today(), inclusive=previous)
     elif previous:
@@ -229,7 +228,7 @@ def daily_create_mv(engine: Engine, trade_day: Optional[date] = None, previous =
 
 
 @trace_elapsed()
-def check_mv_exists(engine: Engine, trade_day: Optional[date] = None, previous = False) -> bool:
+def check_mv_exists(engine: Engine, trade_day: date | None = None, previous = False) -> bool:
     if trade_day is None:
         trade_day = previous_trade_day(date.today(), inclusive=previous)
     elif previous:
@@ -238,7 +237,7 @@ def check_mv_exists(engine: Engine, trade_day: Optional[date] = None, previous =
 
     with Session(engine) as session:
         result = session.execute(
-            text(CHECK_MV_EXISTS_SQL), 
+            text(CHECK_MV_EXISTS_SQL),
             {'mv_name': get_mv_stock_daily_name(trade_day, previous=False)}
         )
         return bool(result.scalar())
@@ -246,15 +245,15 @@ def check_mv_exists(engine: Engine, trade_day: Optional[date] = None, previous =
 
 if __name__ == '__main__':
     from app.db.engine import engine_from_env
-    
+
     trade_day = date(2025, 2, 28)
 #     trade_day = date(2025, 3, 3)
     engine = engine_from_env()
 
     if engine.dialect.name != 'postgresql':
         raise ValueError("Only support postgresql")
-    
+
     init_db_mv(engine)
-    
+
     if not check_mv_exists(engine, trade_day, previous=True):
         assert daily_create_mv(engine, trade_day, previous=True), 'Daily recreate failed'

@@ -2,9 +2,8 @@
 Loading is for static/semi-static data like stock/market/collection
 """
 
-import os
 import csv
-from typing import List, Optional
+import os
 from time import sleep
 
 from loguru import logger
@@ -12,10 +11,10 @@ from sqlalchemy import select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from app.data.ak import pull_collections, pull_stocks, pull_stocks_in_collection
+from app.constant.collection import CollectionType
 from app.constant.exchange import BAD_STOCKS, MARKET_SUPPORTED
 from app.constant.misc import TIME_SLEEP_SECS
-from app.constant.collection import CollectionType
+from app.data.ak import pull_collections, pull_stocks, pull_stocks_in_collection
 from app.db.engine import engine_from_env
 from app.db.models import Collection, Market, Stock
 from app.profile.tracer import trace_elapsed
@@ -33,10 +32,10 @@ def load_market(engine: Engine) -> None:
             for row in reader:
                 market = Market(**row)
                 session.add(market)
-            
+
             session.commit()
             logger.success('market table loaded')
-        
+
 
 
 def load_all_stocks(engine: Engine, market_name: str) -> None:
@@ -90,7 +89,7 @@ def load_collection(engine: Engine, collection_type: CollectionType) -> None:
         session.commit()
 
 
-def load_default_collections(engine: Engine) -> List[CollectionType]:
+def load_default_collections(engine: Engine) -> list[CollectionType]:
     default_collection_types = [
         CollectionType.INDUSTRY_BOARD
     ]
@@ -103,7 +102,7 @@ def load_default_collections(engine: Engine) -> List[CollectionType]:
 def load_collection_stock_relation(engine: Engine, collection_type: CollectionType) -> None:
     if collection_type not in CollectionType:
         raise ValueError(f"CollectionType {collection_type} not supported")
-    
+
     with Session(engine) as session:
         count = 0
 
@@ -116,7 +115,7 @@ def load_collection_stock_relation(engine: Engine, collection_type: CollectionTy
 
             df = pull_stocks_in_collection(cType=collection_type, symbol=cName)
             sleep(TIME_SLEEP_SECS)
-            
+
             for code, name in zip(df['code'], df['name']):
                 stock = session.query(Stock).filter_by(code=code).first()
                 if stock:
@@ -124,7 +123,7 @@ def load_collection_stock_relation(engine: Engine, collection_type: CollectionTy
                     stock.collections.append(collection[0])
                 else:
                     logger.warning(f"Stock {name} not found in database yet in {cName}")
-            
+
             session.flush()
             logger.info(f"Linked {len(df)} stocks for collection {cName}")
 
@@ -134,11 +133,11 @@ def load_collection_stock_relation(engine: Engine, collection_type: CollectionTy
 
 
 @trace_elapsed(unit='s')
-def load_by_level(engine: Engine, level: Optional[int] = 0) -> None:
+def load_by_level(engine: Engine, level: int | None = 0) -> None:
     if not level:
         logger.info("Load level 0: none")
         return
-    
+
     if level >= 1:
         load_market(engine)
     if level >= 2:
@@ -152,7 +151,7 @@ def load_by_level(engine: Engine, level: Optional[int] = 0) -> None:
 
 if __name__ == '__main__':
     engine = engine_from_env()
-    
+
     # load_market(engine_from_env(echo=True))
 
     # load_all_stocks(engine)

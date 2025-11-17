@@ -116,6 +116,6 @@ uv run stock-picker reset
 - [] backtests
 - [] get state of database
 - [] later insert of ma250 from materialized view
-- [] google sheet update 
+- [] google sheet update
 - [] real time data from 2:30 to 3:00 (akshare/openD)
 - [] async engine

@@ -1,5 +1,4 @@
 from datetime import date
-from typing import List, Optional
 
 from loguru import logger
 from pandas import DataFrame
@@ -15,8 +14,8 @@ from app.profile.tracer import trace_elapsed
 @trace_elapsed()
 def refresh_feed_daily_table(
     engine: Engine,
-    fds: List[FeedDaily],
-    trade_day: Optional[date] = None,
+    fds: list[FeedDaily],
+    trade_day: date | None = None,
 ) -> DataFrame:
     if trade_day is None:
         trade_day = previous_trade_day(date.today(), inclusive=True)

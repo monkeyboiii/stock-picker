@@ -1,16 +1,21 @@
 """
 Tests for database models in app/db/models.py
 """
-import pytest
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
-import pandas as pd
 
-from app.db.models import (
-    Market, Stock, Collection, RelationCollectionStock,
-    StockDaily, CollectionDaily, FeedDaily
-)
+import pandas as pd
+import pytest
+
 from app.constant.collection import CollectionType
+from app.db.models import (
+    Collection,
+    FeedDaily,
+    Market,
+    RelationCollectionStock,
+    Stock,
+    StockDaily,
+)
 
 
 class TestMarket:

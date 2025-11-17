@@ -1,26 +1,25 @@
 from __future__ import annotations
+
 from datetime import datetime
-from typing import List
 
 from pandas import DataFrame
 from sqlalchemy import (
+    BigInteger,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
     Integer,
+    Numeric,
+    PrimaryKeyConstraint,
     String,
     Time,
-    Date,
-    Float,
-    Numeric,
-    DateTime,
-    BigInteger,
-    ForeignKey,
     UniqueConstraint,
-    PrimaryKeyConstraint,
+    func,
 )
-from sqlalchemy import func
-from sqlalchemy.orm import Mapped, DeclarativeBase
-from sqlalchemy.orm import mapped_column, relationship
-from sqlalchemy.types import Enum as SQLAlchemyEnum
 from sqlalchemy.inspection import inspect
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.types import Enum as SQLAlchemyEnum
 
 from app.constant.collection import CollectionType
 from app.display.utils import ten_thousand_format
@@ -41,7 +40,7 @@ class Market(MetadataBase):
     name:                       Mapped[str]         = mapped_column(String)
     name_short:                 Mapped[str]         = mapped_column(String, nullable=True)
     country:                    Mapped[str]         = mapped_column(String, nullable=True)
-    
+
     open:                       Mapped[Time]        = mapped_column(Time, nullable=True)
     break_start:                Mapped[Time]        = mapped_column(Time, nullable=True)
     break_end:                  Mapped[Time]        = mapped_column(Time, nullable=True)
@@ -64,7 +63,7 @@ class Collection(MetadataBase):
     type:                       Mapped[CollectionType]  = mapped_column(SQLAlchemyEnum(CollectionType))
 
     #
-    stocks:                     Mapped[List[Stock]]     = relationship(
+    stocks:                     Mapped[list[Stock]]     = relationship(
                                 "Stock", secondary='relation_collection_stock', back_populates="collections")
 
 
@@ -78,7 +77,7 @@ class Stock(MetadataBase):
     # relations
     market_id:                  Mapped[int]         = mapped_column(ForeignKey('market.id'))
 
-    collections:                Mapped[List[Collection]] = relationship(
+    collections:                Mapped[list[Collection]] = relationship(
                                 "Collection", secondary='relation_collection_stock', back_populates="stocks")
 
 
@@ -123,7 +122,7 @@ class StockDaily(MetadataBase):
     high:                       Mapped[Numeric]     = mapped_column(Numeric(10, 3), nullable=True)
     low:                        Mapped[Numeric]     = mapped_column(Numeric(10, 3), nullable=True)
     close:                      Mapped[Numeric]     = mapped_column(Numeric(10, 3), nullable=True)
-    
+
     # trade
     # 交易量
     volume:                     Mapped[BigInteger]  = mapped_column(BigInteger, nullable=True)
@@ -137,7 +136,7 @@ class StockDaily(MetadataBase):
     quantity_relative_ratio:    Mapped[Float]       = mapped_column(Float, nullable=True)
     # 换手率
     turnover_rate:              Mapped[Float]       = mapped_column(Float, nullable=True)
-    
+
     # derived
     # moving average
     ma_250:                     Mapped[Float]       = mapped_column(Float, nullable=True)
@@ -155,7 +154,7 @@ class FeedDaily(MetadataBase):
     '''
     Filtered stocks for each day. Insert back to db for showing and backtest.
     '''
-    
+
     __tablename__ = "feed_daily"
     __table_args__ = PrimaryKeyConstraint('code', 'trade_day', 'filter_id'),
 
@@ -163,7 +162,7 @@ class FeedDaily(MetadataBase):
     trade_day:                  Mapped[Date]        = mapped_column(Date)
     filter_id:                  Mapped[int]         = mapped_column(Integer, default=0)
     last_updated:               Mapped[DateTime]    = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
-    
+
     # convenient
     name:                       Mapped[str]         = mapped_column(String)
     collection_name:            Mapped[String]      = mapped_column(String, nullable=True)
@@ -172,7 +171,7 @@ class FeedDaily(MetadataBase):
     close:                      Mapped[Numeric]     = mapped_column(Numeric(10, 3))
     previous_volume:            Mapped[BigInteger]  = mapped_column(BigInteger)
     volume:                     Mapped[BigInteger]  = mapped_column(BigInteger)
-    
+
     # derived
     gain:                       Mapped[Float]       = mapped_column(Float)
     volume_gain:                Mapped[Float]       = mapped_column(Float)
@@ -181,14 +180,14 @@ class FeedDaily(MetadataBase):
         return {c.key: getattr(self, c.key) for c in self.__table__.columns}
 
     @classmethod
-    def to_dataframe(cls, fds: List[FeedDaily] = []) -> DataFrame:
+    def to_dataframe(cls, fds: list[FeedDaily] = []) -> DataFrame:
         df = DataFrame(
             [fd.to_dict() for fd in fds],
             columns=FeedDaily.__table__.columns.keys(),
         )
         df["last_updated"] = datetime.now()
         return df
-    
+
     @classmethod
     def feed_column_mapping(cls) -> dict:
         column_mapping = {
@@ -205,7 +204,7 @@ class FeedDaily(MetadataBase):
             'volume_gain':              '量涨幅',
         }
         return column_mapping
-    
+
     @classmethod
     def convert_to_feed(cls, df: DataFrame) -> DataFrame:
         column_mapping = FeedDaily.feed_column_mapping()
@@ -221,11 +220,11 @@ class FeedDaily(MetadataBase):
 
         for col, func_ in transformations.items():
             df[col] = df[col].apply(func_)
-        
+
         return df.rename(columns=column_mapping)[list(column_mapping.values())]
-    
+
     @classmethod
-    def right_align_columns(cls) -> List[str]:
+    def right_align_columns(cls) -> list[str]:
         columns = [
             'collection_performance',
             'previous_close',
@@ -244,9 +243,9 @@ class FeedDaily(MetadataBase):
         ]
         # return [df.columns.get_loc(col) for col in columns] # type: ignore
         return columns
-    
+
     @classmethod
-    def colorize_columns(cls) -> List[str]:
+    def colorize_columns(cls) -> list[str]:
         columns = [
             'collection_performance',
             'gain',
@@ -260,9 +259,9 @@ class FeedDaily(MetadataBase):
 
 
 if __name__ == "__main__":
-    from app.db.engine import engine_from_env
     from app.constant.confirm import confirms_execution
-    
+    from app.db.engine import engine_from_env
+
     engine = engine_from_env(echo=True)
 
     # MetadataBase.metadata.create_all(engine)

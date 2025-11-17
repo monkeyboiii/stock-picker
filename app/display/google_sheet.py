@@ -1,14 +1,17 @@
 import os
 from datetime import date
-from typing import Optional
 
 import gspread
-from gspread.exceptions import WorksheetNotFound
-from gspread_formatting import CellFormat, TextFormat, format_cell_ranges # type: ignore
-from google.oauth2.service_account import Credentials
 from dotenv import load_dotenv
-from pandas import DataFrame
+from google.oauth2.service_account import Credentials
+from gspread.exceptions import WorksheetNotFound
+from gspread_formatting import (  # type: ignore
+    CellFormat,
+    TextFormat,
+    format_cell_ranges,
+)
 from loguru import logger
+from pandas import DataFrame
 
 from app.constant.confirm import confirms_execution
 from app.db.engine import engine_from_env
@@ -37,10 +40,10 @@ def client_from_env():
 
 def get_stock_sheet():
     return client.open_by_key(sheet_id)
-    
+
 
 @trace_elapsed(unit='s')
-def add_df_to_new_sheet(trade_day: date, df: DataFrame, yes: Optional[bool] = False) -> None:
+def add_df_to_new_sheet(trade_day: date, df: DataFrame, yes: bool | None = False) -> None:
     title = trade_day.isoformat()
     if df.shape[0] == 0:
         logger.warning(f"No data to update for {title}")
@@ -50,7 +53,7 @@ def add_df_to_new_sheet(trade_day: date, df: DataFrame, yes: Optional[bool] = Fa
 
     def idx_to_alpha(idx: int):
         return chr(idx + 65)
-    
+
     feed_column_map = FeedDaily.feed_column_mapping()
     color_df = df[FeedDaily.colorize_columns()].apply(get_color_for_column)
     color_formats = [
@@ -65,7 +68,7 @@ def add_df_to_new_sheet(trade_day: date, df: DataFrame, yes: Optional[bool] = Fa
     # make sheet
     rows = max((feed_df.shape[0] + 1) * 2, 50)
     columns = feed_df.shape[1] + 10
-    
+
     logger.info(f"Creating/updating sheet {title} of {rows} rows and {columns} columns")
     try:
         sheet = get_stock_sheet()
@@ -90,7 +93,7 @@ def add_df_to_new_sheet(trade_day: date, df: DataFrame, yes: Optional[bool] = Fa
         ) for c, row_number, format_ in color_formats
     ] + [
         (
-            alpha_map[c], 
+            alpha_map[c],
             CellFormat(
                 horizontalAlignment='RIGHT',
                 textFormat=TextFormat(
@@ -98,13 +101,13 @@ def add_df_to_new_sheet(trade_day: date, df: DataFrame, yes: Optional[bool] = Fa
                 )
             )
         ) for c in FeedDaily.right_align_columns()
-    ])    
+    ])
     logger.success(f"Google sheet updated for {title}")
 
 
 if __name__ == "__main__":
     from app.constant.schedule import previous_trade_day
-    
+
     trade_day = previous_trade_day(date(2025, 2, 24))
     fds = filter_desired(engine_from_env(), trade_day)
     df = FeedDaily.to_dataframe(fds)

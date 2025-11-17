@@ -1,7 +1,6 @@
-from datetime import date
 import os
+from datetime import date
 from pathlib import Path
-from typing import Optional
 
 from dotenv import load_dotenv
 from loguru import logger
@@ -11,9 +10,9 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from app.constant.exchange import (
+    SEX_BEIJING,
     SEX_SHANGHAI,
     SEX_SHENZHEN,
-    SEX_BEIJING,
 )
 from app.constant.schedule import previous_trade_day
 from app.db.models import FeedDaily, Market, Stock
@@ -37,7 +36,7 @@ def prefix_market_number(code: str, market_name_short: str) -> str:
         return code
 
 
-def add_to_tdx_path(engine: Engine, df: Optional[DataFrame] = None, trade_day: Optional[date] = None) -> None:
+def add_to_tdx_path(engine: Engine, df: DataFrame | None = None, trade_day: date | None = None) -> None:
     if trade_day is None:
         trade_day = previous_trade_day(date.today())
 
@@ -71,8 +70,8 @@ if __name__ == '__main__':
 
     engine = engine_from_env()
     trade_day = date(2025, 2, 20)
-    
+
     # df = filter_desired(engine, trade_day, dryrun=True)
     # add_to_tdx_path(engine, df=df, trade_day=trade_day)
-    
+
     add_to_tdx_path(engine, trade_day=trade_day)

@@ -39,6 +39,7 @@ dev = [
     "ruff==0.9.10",
     "pytest>=8.0.0",
     "pytest-cov>=4.1.0",
+    "pre-commit>=4.0.0",
 ]
 
 [project.scripts]
@@ -54,33 +55,29 @@ packages = ["app"]
 # Ruff configuration
 [tool.ruff]
 target-version = "py313"
-line-length = 120
-indent-width = 4
+# No line-length enforcement - let developers choose
 
 [tool.ruff.lint]
 select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # pyflakes
-    "I",   # isort
-    "B",   # flake8-bugbear
-    "C4",  # flake8-comprehensions
-    "UP",  # pyupgrade
+    "F",   # pyflakes (syntax errors, undefined names)
+    "I",   # isort (import organization)
+    "W291", "W292", "W293",  # trailing whitespace
+    "UP",  # pyupgrade (modern Python syntax)
 ]
-ignore = [
-    "E501",  # line too long (handled by formatter)
-    "B008",  # do not perform function calls in argument defaults
-    "C901",  # too complex
-]
+ignore = []
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # unused imports
 
+[tool.ruff.lint.isort]
+force-single-line = false
+lines-after-imports = 2
+
+# Ruff format disabled - we don't want automatic reformatting of indentation
+# Use --fix flag only for specific fixes (imports, whitespace)
 [tool.ruff.format]
-quote-style = "double"
-indent-style = "space"
-skip-magic-trailing-comma = false
-line-ending = "auto"
+# Format is opt-in only - not run by default
+exclude = ["*"]
 
 # MyPy configuration
 [tool.mypy]
