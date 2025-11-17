@@ -64,10 +64,10 @@ stock-picker/
 │       └── update.py          # Calculate derived metrics (ma250)
 ├── tests/                     # Test files
 │   └── ingest.py
+├── docs/                      # Documentation
+│   └── backtest_framework_design.md  # Backtest system design
 ├── reports/                   # Generated reports (gitignored)
-├── pyproject.toml             # Modern Python project configuration (PEP 621)
-├── requirements.txt           # Legacy production dependencies (use pyproject.toml)
-├── requirements-dev.txt       # Legacy dev dependencies (use pyproject.toml)
+├── pyproject.toml             # Python project configuration (PEP 621 - single source of truth)
 ├── example.env                # Environment template
 └── README.md                  # User documentation
 ```
@@ -142,29 +142,25 @@ The application operates through well-defined states:
    GOOGLE_SHEET_ID=<sheet_id>
    ```
 
-3. **Dependencies** (choose one method):
+3. **Dependencies** (using uv):
 
-   **Modern approach (recommended - using uv):**
+   **Install uv:**
    ```bash
    # Install uv if not already installed
    curl -LsSf https://astral.sh/uv/install.sh | sh
-
-   # Install all dependencies including dev
-   uv pip install -e ".[dev]"
-
-   # Or install only production dependencies
-   uv pip install -e .
    ```
 
-   **Traditional approach (using pip):**
+   **Sync dependencies:**
    ```bash
-   pip install -e .  # Production (from pyproject.toml)
-   pip install -e ".[dev]"  # Including dev dependencies
+   # Sync all dependencies including dev (recommended for development)
+   uv sync
 
-   # Legacy method (still works)
-   pip install -r requirements.txt  # Production
-   pip install -r requirements-dev.txt  # Development
+   # Or sync only production dependencies
+   uv sync --no-dev
    ```
+
+   **Note:** All dependencies are defined in `pyproject.toml` (PEP 621 compliant).
+   This project uses `uv sync` exclusively for dependency management.
 
 4. **Google Credentials**:
    - Place `credentials.json` in root (gitignored)
@@ -172,8 +168,15 @@ The application operates through well-defined states:
 
 ### Running the Application
 
-**After installing with pip/uv (recommended):**
+**Using uv run (recommended - no activation needed):**
 ```bash
+uv run stock-picker [command] [options]
+```
+
+**Or activate the virtual environment:**
+```bash
+source .venv/bin/activate  # On Unix
+# .venv\Scripts\activate   # On Windows
 stock-picker [command] [options]
 ```
 
@@ -183,37 +186,32 @@ export PYTHONPATH=.
 python app/main.py [command] [options]
 ```
 
-**Using uv run (no install needed):**
-```bash
-uv run stock-picker [command] [options]
-```
-
 **Common Commands:**
 
 ```bash
 # Initialize database (State 1 → State 2)
-python app/main.py init -r -lll
+uv run stock-picker init -r -lll
 # -r: reset (drop existing tables)
 # -lll: load level 3 (market, stocks, collections)
 
 # Full daily run (State 2/3/4 → State 5)
-python app/main.py run
+uv run stock-picker run
 # Ingest data, calculate metrics, filter, display
 
 # Ingest only (State 2 → State 3/4)
-python app/main.py run -t ingest
+uv run stock-picker run -t ingest
 
 # Update metrics (State 4 → State 5)
-python app/main.py run -t update
+uv run stock-picker run -t update
 
 # Filter stocks
-python app/main.py run -t filter
+uv run stock-picker run -t filter
 
 # Display results
-python app/main.py run -t display
+uv run stock-picker run -t display
 
 # Reset database
-python app/main.py reset
+uv run stock-picker reset
 ```
 
 **Logging Options:**
@@ -557,42 +555,46 @@ GOOGLE_SHEET_ID=<your_sheet_id>
 
 **Installation:**
 ```bash
-# With uv (fast, recommended)
-uv pip install -e ".[dev]"
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# With pip
-pip install -e ".[dev]"
+# Sync all dependencies (including dev)
+uv sync
 
-# Production only (no dev dependencies)
-uv pip install -e .
+# Or sync production only (no dev dependencies)
+uv sync --no-dev
 ```
 
 ## Quick Reference Commands
 
 ```bash
-# First-time setup (using installed command)
+# Install dependencies
+uv sync
+
+# First-time setup (using uv run - recommended)
+uv run stock-picker init -r -lll
+
+# Or activate venv and run directly
+source .venv/bin/activate
 stock-picker init -r -lll
 
 # Or using direct module execution
 python app/main.py init -r -lll
 
-# Or using uv run (no install needed)
-uv run stock-picker init -r -lll
-
 # Daily automation (once at State 5)
-stock-picker run
+uv run stock-picker run
 
 # Dry run filtering (no DB writes)
-stock-picker run -t filter --dryrun
+uv run stock-picker run -t filter --dryrun
 
 # Verbose debugging
-stock-picker run -vvv
+uv run stock-picker run -vvv
 
 # Store logs
-stock-picker run -S -t
+uv run stock-picker run -S -t
 
 # Specific date
-stock-picker run --date 2025-11-17
+uv run stock-picker run --date 2025-11-17
 
 # Linting and formatting
 ruff check .
@@ -604,61 +606,66 @@ mypy app/
 
 ## Modern Python Tooling (uv Workflow)
 
-This project now supports modern Python package management with **uv** - an extremely fast Python package installer and resolver written in Rust.
+This project uses **uv** exclusively for modern Python package management - an extremely fast Python package installer and resolver written in Rust.
 
 ### Why uv?
 
 - **10-100x faster** than pip for dependency resolution and installation
-- **Drop-in replacement** for pip (same command syntax)
+- **Modern PEP 621 support** - reads from `pyproject.toml` directly
 - **Better dependency resolution** with modern PEP standards
-- **No virtual environment needed** - uv manages environments automatically
+- **Built-in virtual environment management** - no need for separate venv tools
+- **Lockfile-based** - ensures reproducible builds
 
-### Common uv Workflows
+### Primary Workflow: uv sync
 
-**Quick start (no installation):**
+**Quick start (recommended):**
 ```bash
-# Run commands directly without installing
+# Run commands directly without syncing (fastest for one-off commands)
 uv run stock-picker init -r -lll
 uv run stock-picker run
 ```
 
 **Development workflow:**
 ```bash
-# Install in editable mode with dev dependencies
-uv pip install -e ".[dev]"
+# Sync dependencies from pyproject.toml (creates/updates .venv)
+uv sync              # All dependencies including dev
+
+# Or sync production only
+uv sync --no-dev     # Production dependencies only
 
 # Run the installed command
+source .venv/bin/activate
 stock-picker run
 
-# Update dependencies
-uv pip install --upgrade -e ".[dev]"
-```
-
-**Sync dependencies from pyproject.toml:**
-```bash
-# Create/update virtual environment from pyproject.toml
-uv venv
-source .venv/bin/activate  # On Unix
-# or .venv\Scripts\activate  # On Windows
-
-# Sync to exact dependencies in pyproject.toml
-uv pip sync
+# Or use uv run without activation
+uv run stock-picker run
 ```
 
 **Adding new dependencies:**
 ```bash
-# Add to pyproject.toml manually, then:
-uv pip install -e ".[dev]"
+# 1. Add dependency to pyproject.toml manually
+# 2. Sync to install it
+uv sync
 
-# Or install directly (update pyproject.toml manually after)
-uv pip install package-name==version
+# Or use uv add (if available in your uv version)
+uv add package-name==version
+uv sync
+```
+
+**Updating dependencies:**
+```bash
+# Update all dependencies to latest compatible versions
+uv sync --upgrade
+
+# Lock current versions
+uv lock
 ```
 
 ### Project Structure Notes
 
-- **pyproject.toml**: Single source of truth for dependencies (PEP 621)
-- **requirements.txt**: Legacy support (can be removed in future)
-- **requirements-dev.txt**: Legacy support (can be removed in future)
+- **pyproject.toml**: Single source of truth for all dependencies (PEP 621)
+- **uv.lock**: Lockfile for reproducible builds (auto-generated by uv sync)
+- **.venv/**: Virtual environment (auto-created by uv sync)
 
 ### Ruff Configuration
 
