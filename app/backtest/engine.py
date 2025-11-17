@@ -18,6 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
+from app.backtest.analytics import PerformanceAnalyzer, PerformanceMetrics
 from app.backtest.signals import SignalEngine
 from app.constant.schedule import is_stock_market_open, next_trade_day
 from app.db.models import BacktestRun, PortfolioSnapshot, Strategy, StockDaily, Trade
@@ -304,118 +305,64 @@ class BacktestResult:
         trades: List[Dict],
         equity_curve: List[Dict],
         initial_capital: Decimal,
+        trading_days: int = None,
     ):
         self.trades = trades
         self.equity_curve = equity_curve
         self.initial_capital = initial_capital
 
-        # Calculate metrics
-        self._calculate_metrics()
+        # Estimate trading days if not provided
+        if trading_days is None:
+            trading_days = len(equity_curve) if equity_curve else 1
 
-    def _calculate_metrics(self) -> None:
-        """Calculate comprehensive performance metrics"""
-
-        # Basic metrics
-        self.total_trades = len(self.trades)
-
-        if self.total_trades == 0:
-            self._set_empty_metrics()
-            return
-
-        # Filter winning and losing trades
-        winning_trades = [t for t in self.trades if t["net_pnl"] > 0]
-        losing_trades = [t for t in self.trades if t["net_pnl"] < 0]
-
-        self.winning_trades = len(winning_trades)
-        self.losing_trades = len(losing_trades)
-        self.win_rate = (self.winning_trades / self.total_trades) * 100 if self.total_trades > 0 else 0
-
-        # Return metrics
-        if len(self.equity_curve) > 0:
-            final_value = self.equity_curve[-1]["total_value"]
-            self.total_return = ((final_value - self.initial_capital) / self.initial_capital) * 100
-        else:
-            self.total_return = 0
-
-        # Sharpe ratio (annualized, risk-free rate = 0)
-        if len(self.equity_curve) > 1:
-            daily_returns = [
-                float(self.equity_curve[i]["daily_return"])
-                for i in range(1, len(self.equity_curve))
-            ]
-            if len(daily_returns) > 0:
-                mean_return = np.mean(daily_returns)
-                std_return = np.std(daily_returns)
-                self.sharpe_ratio = (
-                    (mean_return / std_return) * np.sqrt(252) if std_return > 0 else 0
-                )
-            else:
-                self.sharpe_ratio = 0
-        else:
-            self.sharpe_ratio = 0
-
-        # Max drawdown
-        self.max_drawdown = 0
-        peak = self.equity_curve[0]["total_value"] if len(self.equity_curve) > 0 else self.initial_capital
-
-        for snapshot in self.equity_curve:
-            if snapshot["total_value"] > peak:
-                peak = snapshot["total_value"]
-
-            drawdown = ((peak - snapshot["total_value"]) / peak) * 100 if peak > 0 else 0
-            self.max_drawdown = max(self.max_drawdown, drawdown)
-
-        # Profit factor
-        gross_profit = sum(float(t["gross_pnl"]) for t in winning_trades) if winning_trades else 0
-        gross_loss = abs(sum(float(t["gross_pnl"]) for t in losing_trades)) if losing_trades else 0
-        self.profit_factor = gross_profit / gross_loss if gross_loss > 0 else float("inf")
-
-        # Average metrics
-        self.avg_win = (
-            sum(float(t["net_pnl"]) for t in winning_trades) / len(winning_trades)
-            if winning_trades
-            else 0
-        )
-        self.avg_loss = (
-            sum(float(t["net_pnl"]) for t in losing_trades) / len(losing_trades)
-            if losing_trades
-            else 0
+        # Use PerformanceAnalyzer for comprehensive metrics
+        self.performance_metrics: PerformanceMetrics = PerformanceAnalyzer.calculate(
+            trades=trades,
+            equity_curve=equity_curve,
+            initial_capital=initial_capital,
+            trading_days=trading_days,
         )
 
-        # Holding period
-        self.avg_holding_days = (
-            sum(t["holding_days"] for t in self.trades) / len(self.trades)
-            if self.trades
-            else 0
-        )
-
-    def _set_empty_metrics(self) -> None:
-        """Set default metrics when no trades"""
-        self.winning_trades = 0
-        self.losing_trades = 0
-        self.win_rate = 0
-        self.total_return = 0
-        self.sharpe_ratio = 0
-        self.max_drawdown = 0
-        self.profit_factor = 0
-        self.avg_win = 0
-        self.avg_loss = 0
-        self.avg_holding_days = 0
+        # Set commonly accessed attributes for backward compatibility
+        self.total_trades = self.performance_metrics.total_trades
+        self.winning_trades = sum(1 for t in trades if t["net_pnl"] > 0)
+        self.losing_trades = sum(1 for t in trades if t["net_pnl"] < 0)
+        self.win_rate = float(self.performance_metrics.win_rate) * 100
+        self.total_return = float(self.performance_metrics.total_return)
+        self.sharpe_ratio = float(self.performance_metrics.sharpe_ratio)
+        self.sortino_ratio = float(self.performance_metrics.sortino_ratio)
+        self.calmar_ratio = float(self.performance_metrics.calmar_ratio)
+        self.max_drawdown = float(self.performance_metrics.max_drawdown)
+        self.profit_factor = float(self.performance_metrics.profit_factor)
+        self.avg_win = float(self.performance_metrics.avg_win)
+        self.avg_loss = float(self.performance_metrics.avg_loss)
+        self.avg_holding_days = float(self.performance_metrics.avg_holding_period)
 
     def summary(self) -> Dict:
-        """Return summary metrics as dict"""
+        """Return summary metrics as dict with enhanced analytics"""
         return {
             "total_trades": self.total_trades,
             "winning_trades": self.winning_trades,
             "losing_trades": self.losing_trades,
             "win_rate": round(self.win_rate, 2),
             "total_return": round(float(self.total_return), 2),
+            "annualized_return": round(float(self.performance_metrics.annualized_return), 2),
             "sharpe_ratio": round(float(self.sharpe_ratio), 2),
+            "sortino_ratio": round(float(self.sortino_ratio), 2),
+            "calmar_ratio": round(float(self.calmar_ratio), 2),
             "max_drawdown": round(float(self.max_drawdown), 2),
+            "avg_drawdown": round(float(self.performance_metrics.avg_drawdown), 2),
+            "volatility": round(float(self.performance_metrics.volatility), 2),
             "profit_factor": round(float(self.profit_factor), 2),
             "avg_win": round(float(self.avg_win), 2),
             "avg_loss": round(float(self.avg_loss), 2),
+            "largest_win": round(float(self.performance_metrics.largest_win), 2),
+            "largest_loss": round(float(self.performance_metrics.largest_loss), 2),
+            "expectancy": round(float(self.performance_metrics.expectancy), 2),
+            "max_consecutive_wins": self.performance_metrics.max_consecutive_wins,
+            "max_consecutive_losses": self.performance_metrics.max_consecutive_losses,
             "avg_holding_days": round(self.avg_holding_days, 1),
+            "turnover_rate": round(float(self.performance_metrics.turnover_rate), 1),
         }
 
     def __str__(self) -> str:
@@ -687,8 +634,12 @@ class BacktestEngine:
                 commission_rate=self.commission_rate,
                 slippage_rate=self.slippage_rate,
                 total_return=Decimal(str(result.total_return)),
+                annualized_return=Decimal(str(result.performance_metrics.annualized_return)),
                 sharpe_ratio=Decimal(str(result.sharpe_ratio)),
+                sortino_ratio=Decimal(str(result.sortino_ratio)),
+                calmar_ratio=Decimal(str(result.calmar_ratio)),
                 max_drawdown=Decimal(str(result.max_drawdown)),
+                volatility=Decimal(str(result.performance_metrics.volatility)),
                 win_rate=Decimal(str(result.win_rate)),
                 profit_factor=Decimal(str(result.profit_factor)),
                 total_trades=result.total_trades,

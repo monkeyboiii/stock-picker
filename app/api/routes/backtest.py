@@ -23,9 +23,12 @@ from app.api.models import (
     TradesResponse,
     TradeResponse,
 )
+from app.api.charts import ChartDataGenerator
+from app.backtest.benchmark import BenchmarkIntegration
+from app.backtest.comparison import ComparisonEngine
 from app.backtest.engine import BacktestEngine
 from app.backtest.strategy import get_strategy
-from app.db.models import BacktestRun, PortfolioSnapshot, Strategy, Trade
+from app.db.models import BacktestRun, ComparisonBacktestRun, PortfolioSnapshot, Strategy, StrategyComparison, Trade
 from app.strategy import parse_strategy, validate_strategy
 
 router = APIRouter()
@@ -354,3 +357,317 @@ async def delete_backtest_run(
     db.commit()
 
     logger.info(f"Deleted backtest run: {run_id}")
+
+
+# ============================================================================
+# Phase 4: Analytics & Visualization Endpoints
+# ============================================================================
+
+
+@router.get("/backtest/runs/{run_id}/metrics")
+async def get_enhanced_metrics(
+    run_id: str = Path(..., description="Backtest run ID"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get enhanced performance metrics for a backtest run
+
+    Returns comprehensive analytics including Sortino ratio, Calmar ratio,
+    volatility, and other advanced metrics.
+    """
+    run = db.get(BacktestRun, run_id)
+
+    if not run:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Backtest run not found: {run_id}"
+        )
+
+    # Return enhanced metrics
+    return {
+        "run_id": str(run.id),
+        "metrics": {
+            "total_return": float(run.total_return) if run.total_return else 0.0,
+            "annualized_return": float(run.annualized_return) if run.annualized_return else 0.0,
+            "sharpe_ratio": float(run.sharpe_ratio) if run.sharpe_ratio else 0.0,
+            "sortino_ratio": float(run.sortino_ratio) if run.sortino_ratio else 0.0,
+            "calmar_ratio": float(run.calmar_ratio) if run.calmar_ratio else 0.0,
+            "max_drawdown": float(run.max_drawdown) if run.max_drawdown else 0.0,
+            "volatility": float(run.volatility) if run.volatility else 0.0,
+            "win_rate": float(run.win_rate) if run.win_rate else 0.0,
+            "profit_factor": float(run.profit_factor) if run.profit_factor else 0.0,
+            "total_trades": run.total_trades or 0,
+        }
+    }
+
+
+@router.post("/backtest/compare")
+async def create_comparison(
+    backtest_run_ids: List[str],
+    metrics: List[str] = Query(["total_return", "sharpe_ratio", "max_drawdown"]),
+    name: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Compare multiple backtest runs
+
+    Creates a comparison analysis with rankings and statistical tests.
+
+    Args:
+        backtest_run_ids: List of backtest run UUIDs to compare
+        metrics: List of metrics to compare
+        name: Optional name for this comparison
+
+    Returns:
+        Comparison results with rankings and statistical significance
+    """
+    if len(backtest_run_ids) < 2:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least 2 backtest runs required for comparison"
+        )
+
+    try:
+        # Use ComparisonEngine to perform comparison
+        comparison_result = ComparisonEngine.compare_strategies(
+            backtest_run_ids=backtest_run_ids,
+            metrics=metrics,
+            name=name,
+            session=db
+        )
+
+        # Store comparison in database
+        comparison = StrategyComparison(
+            id=comparison_result.comparison_id,
+            name=comparison_result.name,
+            num_strategies=len(backtest_run_ids),
+            metrics_compared=metrics,
+            comparison_results=comparison_result.to_dict(),
+            statistical_tests=comparison_result.statistical_tests
+        )
+        db.add(comparison)
+
+        # Add junction table records
+        for i, run_data in enumerate(comparison_result.runs):
+            junction = ComparisonBacktestRun(
+                comparison_id=comparison_result.comparison_id,
+                backtest_run_id=run_data["run_id"],
+                rank=run_data["rank"]
+            )
+            db.add(junction)
+
+        db.commit()
+
+        logger.info(f"Created comparison: {comparison_result.comparison_id}")
+
+        return comparison_result.to_dict()
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.get("/backtest/compare/{comparison_id}")
+async def get_comparison(
+    comparison_id: str = Path(..., description="Comparison ID"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get comparison results
+
+    Retrieves a previously created comparison with all rankings and statistics.
+    """
+    comparison = db.get(StrategyComparison, comparison_id)
+
+    if not comparison:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Comparison not found: {comparison_id}"
+        )
+
+    return comparison.to_dict()
+
+
+@router.get("/backtest/runs/{run_id}/charts/equity-curve")
+async def get_equity_curve_chart(
+    run_id: str = Path(..., description="Backtest run ID"),
+    include_drawdown: bool = Query(True, description="Include drawdown series"),
+    benchmark_run_id: Optional[str] = Query(None, description="Benchmark run ID for comparison"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get equity curve chart data
+
+    Returns formatted data for rendering equity curve charts on the frontend.
+    """
+    try:
+        chart_data = ChartDataGenerator.equity_curve(
+            run_id=run_id,
+            session=db,
+            include_drawdown=include_drawdown,
+            benchmark_run_id=benchmark_run_id
+        )
+        return chart_data
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+
+
+@router.get("/backtest/runs/{run_id}/charts/monthly-returns")
+async def get_monthly_returns_chart(
+    run_id: str = Path(..., description="Backtest run ID"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get monthly returns heatmap data
+
+    Returns monthly returns organized by year for heatmap visualization.
+    """
+    try:
+        chart_data = ChartDataGenerator.monthly_returns(
+            run_id=run_id,
+            session=db
+        )
+        return chart_data
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+
+
+@router.get("/backtest/runs/{run_id}/charts/trade-distribution")
+async def get_trade_distribution_chart(
+    run_id: str = Path(..., description="Backtest run ID"),
+    bins: int = Query(20, ge=5, le=50, description="Number of histogram bins"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get trade return distribution chart data
+
+    Returns histogram data showing the distribution of trade returns.
+    """
+    try:
+        chart_data = ChartDataGenerator.trade_distribution(
+            run_id=run_id,
+            session=db,
+            bins=bins
+        )
+        return chart_data
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+
+
+@router.get("/backtest/runs/{run_id}/charts/drawdown")
+async def get_drawdown_chart(
+    run_id: str = Path(..., description="Backtest run ID"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get drawdown chart data
+
+    Returns portfolio drawdown over time.
+    """
+    try:
+        chart_data = ChartDataGenerator.drawdown_chart(
+            run_id=run_id,
+            session=db
+        )
+        return chart_data
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+
+
+@router.get("/backtest/compare/{comparison_id}/chart")
+async def get_comparison_chart(
+    comparison_id: str = Path(..., description="Comparison ID"),
+    metric: str = Query("total_value", description="Metric to compare"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get multi-strategy comparison chart
+
+    Returns chart data comparing multiple strategies on a selected metric.
+    """
+    # Get comparison
+    comparison = db.get(StrategyComparison, comparison_id)
+
+    if not comparison:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Comparison not found: {comparison_id}"
+        )
+
+    # Extract run IDs
+    run_ids = [run["run_id"] for run in comparison.comparison_results["runs"]]
+
+    try:
+        chart_data = ChartDataGenerator.comparison_chart(
+            run_ids=run_ids,
+            session=db,
+            metric=metric
+        )
+        return chart_data
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+
+
+@router.get("/backtest/runs/{run_id}/benchmark-comparison")
+async def compare_with_benchmark(
+    run_id: str = Path(..., description="Backtest run ID"),
+    benchmark_code: str = Query("399300", description="Benchmark index code (e.g., 399300 for CSI 300)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Compare backtest run against market benchmark
+
+    Calculates alpha, beta, correlation, and information ratio vs. benchmark index.
+
+    Common benchmarks:
+    - 399300: CSI 300 Index
+    - 000016: SSE 50 Index
+    - 000001: Shanghai Composite
+    - 399001: Shenzhen Component
+    """
+    # Get run
+    run = db.get(BacktestRun, run_id)
+
+    if not run:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Backtest run not found: {run_id}"
+        )
+
+    try:
+        benchmark_comparison = BenchmarkIntegration.compare_with_benchmark(
+            run_id=run_id,
+            benchmark_code=benchmark_code,
+            start_date=run.start_date,
+            end_date=run.end_date,
+            session=db
+        )
+
+        return {
+            "run_id": str(run.id),
+            "benchmark_code": benchmark_code,
+            "comparison": benchmark_comparison.to_dict()
+        }
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )

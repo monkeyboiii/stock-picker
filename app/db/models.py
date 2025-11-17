@@ -315,8 +315,12 @@ class BacktestRun(MetadataBase):
 
     # Results (computed after run)
     total_return:               Mapped[Numeric]     = mapped_column(Numeric(10, 4), nullable=True)
+    annualized_return:          Mapped[Numeric]     = mapped_column(Numeric(10, 4), nullable=True)
     sharpe_ratio:               Mapped[Numeric]     = mapped_column(Numeric(10, 4), nullable=True)
+    sortino_ratio:              Mapped[Numeric]     = mapped_column(Numeric(10, 4), nullable=True)
+    calmar_ratio:               Mapped[Numeric]     = mapped_column(Numeric(10, 4), nullable=True)
     max_drawdown:               Mapped[Numeric]     = mapped_column(Numeric(10, 4), nullable=True)
+    volatility:                 Mapped[Numeric]     = mapped_column(Numeric(10, 4), nullable=True)
     win_rate:                   Mapped[Numeric]     = mapped_column(Numeric(5, 4), nullable=True)
     profit_factor:              Mapped[Numeric]     = mapped_column(Numeric(10, 4), nullable=True)
     total_trades:               Mapped[int]         = mapped_column(Integer, nullable=True)
@@ -423,19 +427,48 @@ class StrategyComparison(MetadataBase):
     Stores groups of backtest runs for side-by-side comparison.
 
     Allows users to compare multiple strategies or parameter variations.
+    Includes comparison results and statistical significance tests.
     '''
 
     __tablename__ = 'strategy_comparison'
 
     id:                         Mapped[str]         = mapped_column(UUID(as_uuid=False), primary_key=True, server_default=func.gen_random_uuid())
-    name:                       Mapped[str]         = mapped_column(String(255), nullable=True)
-    description:                Mapped[str]         = mapped_column(Text, nullable=True)
-
-    # Array of backtest run IDs
-    backtest_run_ids:           Mapped[list]        = mapped_column(ARRAY(UUID(as_uuid=False)))
-
+    name:                       Mapped[str]         = mapped_column(String(255))
     created_at:                 Mapped[DateTime]    = mapped_column(DateTime, server_default=func.now())
-    created_by:                 Mapped[str]         = mapped_column(String(255), nullable=True)
+
+    # Comparison metadata
+    num_strategies:             Mapped[int]         = mapped_column(Integer)
+    metrics_compared:           Mapped[list]        = mapped_column(ARRAY(String), nullable=True)
+
+    # Results (stored as JSONB for flexibility)
+    comparison_results:         Mapped[dict]        = mapped_column(JSON)
+    statistical_tests:          Mapped[dict]        = mapped_column(JSON, nullable=True)
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialization"""
+        return {
+            "id": str(self.id),
+            "name": self.name,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "num_strategies": self.num_strategies,
+            "metrics_compared": self.metrics_compared,
+            "comparison_results": self.comparison_results,
+            "statistical_tests": self.statistical_tests,
+        }
+
+
+class ComparisonBacktestRun(MetadataBase):
+    '''
+    Junction table linking strategy comparisons to backtest runs.
+
+    Stores rank and additional metadata for each run in a comparison.
+    '''
+
+    __tablename__ = 'comparison_backtest_run'
+
+    comparison_id:              Mapped[str]         = mapped_column(UUID(as_uuid=False), ForeignKey('strategy_comparison.id', ondelete='CASCADE'), primary_key=True)
+    backtest_run_id:            Mapped[str]         = mapped_column(UUID(as_uuid=False), ForeignKey('backtest_run.id', ondelete='CASCADE'), primary_key=True)
+    rank:                       Mapped[int]         = mapped_column(Integer, nullable=True)
 
 
 if __name__ == "__main__":
