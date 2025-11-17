@@ -19,10 +19,14 @@ from app.api.models import (
     StrategySummary,
 )
 from app.backtest.strategy import create_strategy, get_strategy, list_strategies
+from app.cache.redis_cache import get_cache, cache_key
 from app.db.models import Strategy
 from app.strategy import parse_strategy, validate_strategy
 
 router = APIRouter()
+
+# Initialize cache
+cache = get_cache()
 
 
 @router.post("/strategies", response_model=StrategyResponse, status_code=status.HTTP_201_CREATED)
@@ -182,10 +186,22 @@ async def get_strategy_by_id(
     db: Session = Depends(get_db)
 ):
     """
-    Get detailed information about a specific strategy
+    Get detailed information about a specific strategy (with caching)
 
     Returns the complete strategy definition.
+
+    Cache TTL: 1 hour (refreshed on strategy updates)
     """
+    # Try cache first
+    cache_key_str = cache_key("strategy", strategy_id=strategy_id)
+    cached = cache.get(cache_key_str)
+
+    if cached:
+        logger.debug(f"Cache hit for strategy: {strategy_id}")
+        return StrategyResponse(**cached)
+
+    # Cache miss - fetch from database
+    logger.debug(f"Cache miss for strategy: {strategy_id}")
     strategy = db.get(Strategy, strategy_id)
 
     if not strategy:
@@ -194,7 +210,14 @@ async def get_strategy_by_id(
             detail=f"Strategy not found: {strategy_id}"
         )
 
-    return StrategyResponse.model_validate(strategy)
+    # Convert to response model
+    response = StrategyResponse.model_validate(strategy)
+
+    # Cache the result
+    cache.set(cache_key_str, response.model_dump(), ttl=3600)  # 1 hour TTL
+    logger.debug(f"Cached strategy: {strategy_id}")
+
+    return response
 
 
 @router.patch("/strategies/{strategy_id}/deactivate", response_model=StrategyResponse)
@@ -207,6 +230,7 @@ async def deactivate_strategy(
 
     The strategy will no longer appear in default listings
     but remains in the database for historical backtests.
+    Also invalidates cache.
     """
     strategy = db.get(Strategy, strategy_id)
 
@@ -220,7 +244,10 @@ async def deactivate_strategy(
     db.commit()
     db.refresh(strategy)
 
-    logger.info(f"Deactivated strategy: {strategy.name} v{strategy.version}")
+    # Invalidate cache
+    cache.delete(cache_key("strategy", strategy_id=strategy_id))
+
+    logger.info(f"Deactivated strategy and invalidated cache: {strategy.name} v{strategy.version}")
 
     return StrategyResponse.model_validate(strategy)
 
@@ -232,6 +259,8 @@ async def activate_strategy(
 ):
     """
     Reactivate a previously deactivated strategy
+
+    Also invalidates cache.
     """
     strategy = db.get(Strategy, strategy_id)
 
@@ -245,7 +274,10 @@ async def activate_strategy(
     db.commit()
     db.refresh(strategy)
 
-    logger.info(f"Activated strategy: {strategy.name} v{strategy.version}")
+    # Invalidate cache
+    cache.delete(cache_key("strategy", strategy_id=strategy_id))
+
+    logger.info(f"Activated strategy and invalidated cache: {strategy.name} v{strategy.version}")
 
     return StrategyResponse.model_validate(strategy)
 
@@ -260,6 +292,7 @@ async def delete_strategy(
 
     WARNING: This will fail if there are associated backtest runs.
     Consider using PATCH /strategies/{id}/deactivate instead.
+    Also invalidates cache.
     """
     strategy = db.get(Strategy, strategy_id)
 
@@ -272,7 +305,11 @@ async def delete_strategy(
     try:
         db.delete(strategy)
         db.commit()
-        logger.info(f"Deleted strategy: {strategy.name} v{strategy.version}")
+
+        # Invalidate cache
+        cache.delete(cache_key("strategy", strategy_id=strategy_id))
+
+        logger.info(f"Deleted strategy and invalidated cache: {strategy.name} v{strategy.version}")
     except Exception as e:
         db.rollback()
         raise HTTPException(

@@ -10,6 +10,7 @@ from typing import Optional
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from loguru import logger
 
+from app.api.auth import verify_token_userinfo
 from app.api.websocket_manager import manager
 
 router = APIRouter()
@@ -19,10 +20,11 @@ router = APIRouter()
 async def websocket_backtest_stream(
     websocket: WebSocket,
     run_id: str,
+    token: str = Query(..., description="JWT authentication token"),
     client_id: Optional[str] = Query(None)
 ):
     """
-    WebSocket endpoint for streaming backtest progress
+    WebSocket endpoint for streaming backtest progress (authenticated)
 
     Streams real-time updates for a specific backtest run:
     - Progress updates (percentage complete)
@@ -33,6 +35,7 @@ async def websocket_backtest_stream(
 
     Args:
         run_id: Backtest run ID to stream
+        token: JWT authentication token (required)
         client_id: Optional client identifier
 
     Message Format (JSON):
@@ -43,9 +46,28 @@ async def websocket_backtest_stream(
         "data": { ... }
     }
     """
-    # Generate client ID if not provided
+    # Validate token before accepting connection
+    try:
+        user_info = await verify_token_userinfo(token)
+        user_id = user_info.get("sub")
+
+        if not user_id:
+            logger.warning(f"WebSocket authentication failed: no user ID in token")
+            await websocket.close(code=1008, reason="Authentication failed: invalid token")
+            return
+
+    except Exception as e:
+        logger.warning(f"WebSocket authentication failed: {e}")
+        await websocket.close(code=1008, reason="Authentication failed: invalid token")
+        return
+
+    # Generate client ID if not provided (associate with user ID)
     if not client_id:
-        client_id = str(uuid.uuid4())
+        client_id = f"{user_id}:{uuid.uuid4()}"
+    else:
+        client_id = f"{user_id}:{client_id}"
+
+    logger.info(f"WebSocket authenticated: user={user_id}, client={client_id}, run={run_id}")
 
     # Connect and join room for this backtest
     await manager.connect(websocket, client_id)
@@ -58,6 +80,7 @@ async def websocket_backtest_stream(
             "type": "connected",
             "run_id": run_id,
             "client_id": client_id,
+            "user_id": user_id,
             "message": f"Connected to backtest stream: {run_id}"
         },
         client_id
@@ -99,10 +122,11 @@ async def websocket_backtest_stream(
 @router.websocket("/ws/backtests")
 async def websocket_all_backtests(
     websocket: WebSocket,
+    token: str = Query(..., description="JWT authentication token"),
     client_id: Optional[str] = Query(None)
 ):
     """
-    WebSocket endpoint for streaming all backtest activity
+    WebSocket endpoint for streaming all backtest activity (authenticated)
 
     Streams updates for all active backtests:
     - New backtest started
@@ -117,9 +141,28 @@ async def websocket_all_backtests(
         "data": { ... }
     }
     """
-    # Generate client ID if not provided
+    # Validate token before accepting connection
+    try:
+        user_info = await verify_token_userinfo(token)
+        user_id = user_info.get("sub")
+
+        if not user_id:
+            logger.warning(f"WebSocket authentication failed: no user ID in token")
+            await websocket.close(code=1008, reason="Authentication failed: invalid token")
+            return
+
+    except Exception as e:
+        logger.warning(f"WebSocket authentication failed: {e}")
+        await websocket.close(code=1008, reason="Authentication failed: invalid token")
+        return
+
+    # Generate client ID if not provided (associate with user ID)
     if not client_id:
-        client_id = str(uuid.uuid4())
+        client_id = f"{user_id}:{uuid.uuid4()}"
+    else:
+        client_id = f"{user_id}:{client_id}"
+
+    logger.info(f"WebSocket authenticated: user={user_id}, client={client_id}, stream=all")
 
     # Connect and join global backtest room
     await manager.connect(websocket, client_id)
@@ -131,6 +174,7 @@ async def websocket_all_backtests(
         {
             "type": "connected",
             "client_id": client_id,
+            "user_id": user_id,
             "message": "Connected to all backtests stream"
         },
         client_id
@@ -168,10 +212,11 @@ async def websocket_all_backtests(
 @router.websocket("/ws/stats")
 async def websocket_connection_stats(
     websocket: WebSocket,
+    token: str = Query(..., description="JWT authentication token"),
     client_id: Optional[str] = Query(None)
 ):
     """
-    WebSocket endpoint for connection statistics
+    WebSocket endpoint for connection statistics (authenticated)
 
     Streams real-time statistics about WebSocket connections:
     - Active connections count
@@ -179,9 +224,35 @@ async def websocket_connection_stats(
     - Connected clients
 
     Useful for monitoring and debugging.
+    Note: Consider adding admin-only scope check for production use.
     """
+    # Validate token before accepting connection
+    try:
+        user_info = await verify_token_userinfo(token)
+        user_id = user_info.get("sub")
+
+        if not user_id:
+            logger.warning(f"WebSocket authentication failed: no user ID in token")
+            await websocket.close(code=1008, reason="Authentication failed: invalid token")
+            return
+
+        # TODO: Add admin scope check for production
+        # if "admin" not in user_info.get("scopes", []):
+        #     await websocket.close(code=1008, reason="Insufficient permissions")
+        #     return
+
+    except Exception as e:
+        logger.warning(f"WebSocket authentication failed: {e}")
+        await websocket.close(code=1008, reason="Authentication failed: invalid token")
+        return
+
+    # Generate client ID if not provided (associate with user ID)
     if not client_id:
-        client_id = str(uuid.uuid4())
+        client_id = f"{user_id}:{uuid.uuid4()}"
+    else:
+        client_id = f"{user_id}:{client_id}"
+
+    logger.info(f"WebSocket authenticated: user={user_id}, client={client_id}, stream=stats")
 
     await manager.connect(websocket, client_id)
 

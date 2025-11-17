@@ -28,10 +28,14 @@ from app.backtest.benchmark import BenchmarkIntegration
 from app.backtest.comparison import ComparisonEngine
 from app.backtest.engine import BacktestEngine
 from app.backtest.strategy import get_strategy
+from app.cache.redis_cache import get_cache, cache_key
 from app.db.models import BacktestRun, ComparisonBacktestRun, PortfolioSnapshot, Strategy, StrategyComparison, Trade
 from app.strategy import parse_strategy, validate_strategy
 
 router = APIRouter()
+
+# Initialize cache
+cache = get_cache()
 
 
 def run_backtest_background(
@@ -95,6 +99,10 @@ def run_backtest_background(
         if strategy_id:
             backtest_engine.save_to_database(engine, strategy_id, result)
 
+        # Invalidate cache for this run (status changed to completed)
+        cache.invalidate_pattern(f"backtest:run:{run_id}*")
+        cache.invalidate_pattern(f"backtest:results:{run_id}*")
+
         logger.success(f"Backtest {run_id} completed successfully")
 
     except Exception as e:
@@ -108,6 +116,10 @@ def run_backtest_background(
                 run.error_message = str(e)
                 run.completed_at = datetime.now()
                 session.commit()
+
+        # Invalidate cache for this run (status changed to failed)
+        cache.invalidate_pattern(f"backtest:run:{run_id}*")
+        cache.invalidate_pattern(f"backtest:results:{run_id}*")
 
 
 @router.post("/backtest/run", response_model=BacktestRunSummary, status_code=status.HTTP_202_ACCEPTED)
@@ -241,11 +253,23 @@ async def get_backtest_run(
     db: Session = Depends(get_db)
 ):
     """
-    Get detailed information about a specific backtest run
+    Get detailed information about a specific backtest run (with caching)
 
     Returns:
         BacktestRunDetail with complete results and configuration
+
+    Cache TTL: 1 hour (refreshed on backtest completion/update)
     """
+    # Try cache first
+    cache_key_str = cache_key("backtest_run", run_id=run_id)
+    cached = cache.get(cache_key_str)
+
+    if cached:
+        logger.debug(f"Cache hit for backtest run: {run_id}")
+        return BacktestRunDetail(**cached)
+
+    # Cache miss - fetch from database
+    logger.debug(f"Cache miss for backtest run: {run_id}")
     run = db.get(BacktestRun, run_id)
 
     if not run:
@@ -254,7 +278,15 @@ async def get_backtest_run(
             detail=f"Backtest run not found: {run_id}"
         )
 
-    return BacktestRunDetail.model_validate(run)
+    # Convert to response model
+    response = BacktestRunDetail.model_validate(run)
+
+    # Cache the result (only if completed or failed - don't cache pending/running)
+    if run.status in ["completed", "failed"]:
+        cache.set(cache_key_str, response.model_dump(), ttl=3600)  # 1 hour TTL
+        logger.debug(f"Cached backtest run: {run_id}")
+
+    return response
 
 
 @router.get("/backtest/runs/{run_id}/trades", response_model=TradesResponse)
@@ -344,6 +376,7 @@ async def delete_backtest_run(
     Delete a backtest run and all associated data
 
     This will cascade delete all trades and portfolio snapshots.
+    Also invalidates all related cache entries.
     """
     run = db.get(BacktestRun, run_id)
 
@@ -356,7 +389,13 @@ async def delete_backtest_run(
     db.delete(run)
     db.commit()
 
-    logger.info(f"Deleted backtest run: {run_id}")
+    # Invalidate all cache entries for this run
+    cache.delete(cache_key("backtest_run", run_id=run_id))
+    cache.delete(cache_key("analytics", run_id=run_id))
+    cache.invalidate_pattern(f"backtest:results:{run_id}*")
+    cache.invalidate_pattern(f"chart:{run_id}:*")
+
+    logger.info(f"Deleted backtest run and invalidated cache: {run_id}")
 
 
 # ============================================================================
@@ -370,11 +409,23 @@ async def get_enhanced_metrics(
     db: Session = Depends(get_db)
 ):
     """
-    Get enhanced performance metrics for a backtest run
+    Get enhanced performance metrics for a backtest run (with caching)
 
     Returns comprehensive analytics including Sortino ratio, Calmar ratio,
     volatility, and other advanced metrics.
+
+    Cache TTL: 1 hour (refreshed on backtest completion/update)
     """
+    # Try cache first
+    cache_key_str = cache_key("analytics", run_id=run_id)
+    cached = cache.get(cache_key_str)
+
+    if cached:
+        logger.debug(f"Cache hit for metrics: {run_id}")
+        return cached
+
+    # Cache miss - fetch from database
+    logger.debug(f"Cache miss for metrics: {run_id}")
     run = db.get(BacktestRun, run_id)
 
     if not run:
@@ -383,8 +434,8 @@ async def get_enhanced_metrics(
             detail=f"Backtest run not found: {run_id}"
         )
 
-    # Return enhanced metrics
-    return {
+    # Build metrics response
+    metrics = {
         "run_id": str(run.id),
         "metrics": {
             "total_return": float(run.total_return) if run.total_return else 0.0,
@@ -399,6 +450,13 @@ async def get_enhanced_metrics(
             "total_trades": run.total_trades or 0,
         }
     }
+
+    # Cache if backtest is completed
+    if run.status in ["completed", "failed"]:
+        cache.set(cache_key_str, metrics, ttl=3600)  # 1 hour TTL
+        logger.debug(f"Cached metrics: {run_id}")
+
+    return metrics
 
 
 @router.post("/backtest/compare")
@@ -475,10 +533,22 @@ async def get_comparison(
     db: Session = Depends(get_db)
 ):
     """
-    Get comparison results
+    Get comparison results (with caching)
 
     Retrieves a previously created comparison with all rankings and statistics.
+
+    Cache TTL: 1 hour
     """
+    # Try cache first
+    cache_key_str = cache_key("comparison", comparison_id=comparison_id)
+    cached = cache.get(cache_key_str)
+
+    if cached:
+        logger.debug(f"Cache hit for comparison: {comparison_id}")
+        return cached
+
+    # Cache miss - fetch from database
+    logger.debug(f"Cache miss for comparison: {comparison_id}")
     comparison = db.get(StrategyComparison, comparison_id)
 
     if not comparison:
@@ -487,7 +557,13 @@ async def get_comparison(
             detail=f"Comparison not found: {comparison_id}"
         )
 
-    return comparison.to_dict()
+    result = comparison.to_dict()
+
+    # Cache the result
+    cache.set(cache_key_str, result, ttl=3600)  # 1 hour TTL
+    logger.debug(f"Cached comparison: {comparison_id}")
+
+    return result
 
 
 @router.get("/backtest/runs/{run_id}/charts/equity-curve")

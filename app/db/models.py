@@ -7,6 +7,7 @@ from sqlalchemy import (
     ARRAY,
     BigInteger,
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     Float,
@@ -79,7 +80,7 @@ class Stock(MetadataBase):
     name:                       Mapped[str]         = mapped_column(String(50))
 
     # relations
-    market_id:                  Mapped[int]         = mapped_column(ForeignKey('market.id'))
+    market_id:                  Mapped[int]         = mapped_column(ForeignKey('market.id', ondelete='CASCADE'))
 
     collections:                Mapped[list[Collection]] = relationship(
                                 "Collection", secondary='relation_collection_stock', back_populates="stocks")
@@ -89,15 +90,15 @@ class RelationCollectionStock(MetadataBase):
     __tablename__ = 'relation_collection_stock'
     __table_args__ = PrimaryKeyConstraint('collection_code', 'stock_code'),
 
-    collection_code:            Mapped[int]         = mapped_column(ForeignKey('collection.code'))
-    stock_code:                 Mapped[str]         = mapped_column(ForeignKey('stock.code'))
+    collection_code:            Mapped[int]         = mapped_column(ForeignKey('collection.code', ondelete='CASCADE'))
+    stock_code:                 Mapped[str]         = mapped_column(ForeignKey('stock.code', ondelete='CASCADE'))
 
 
 class CollectionDaily(MetadataBase):
     __tablename__ = 'collection_daily'
     __table_args__ = PrimaryKeyConstraint('code', 'trade_day'),
 
-    code:                       Mapped[int]         = mapped_column(ForeignKey('collection.code'))
+    code:                       Mapped[int]         = mapped_column(ForeignKey('collection.code', ondelete='CASCADE'))
     trade_day:                  Mapped[Date]        = mapped_column(Date)
     last_updated:               Mapped[DateTime]    = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -117,7 +118,7 @@ class StockDaily(MetadataBase):
     __table_args__ = PrimaryKeyConstraint('code', 'trade_day'),
 
     # basic
-    code:                       Mapped[str]         = mapped_column(ForeignKey('stock.code'))
+    code:                       Mapped[str]         = mapped_column(ForeignKey('stock.code', ondelete='CASCADE'))
     trade_day:                  Mapped[Date]        = mapped_column(Date)
     last_updated:               Mapped[DateTime]    = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -162,7 +163,7 @@ class FeedDaily(MetadataBase):
     __tablename__ = "feed_daily"
     __table_args__ = PrimaryKeyConstraint('code', 'trade_day', 'filter_id'),
 
-    code:                       Mapped[str]         = mapped_column(ForeignKey('stock.code'))
+    code:                       Mapped[str]         = mapped_column(ForeignKey('stock.code', ondelete='CASCADE'))
     trade_day:                  Mapped[Date]        = mapped_column(Date)
     filter_id:                  Mapped[int]         = mapped_column(Integer, default=0)
     last_updated:               Mapped[DateTime]    = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
@@ -288,7 +289,7 @@ class Strategy(MetadataBase):
     is_active:                  Mapped[bool]        = mapped_column(Boolean, default=True)
 
     # Relationships
-    backtest_runs:              Mapped[list["BacktestRun"]] = relationship("BacktestRun", back_populates="strategy")
+    backtest_runs:              Mapped[list["BacktestRun"]] = relationship("BacktestRun", back_populates="strategy", cascade="all, delete-orphan")
 
 
 class BacktestRun(MetadataBase):
@@ -300,9 +301,15 @@ class BacktestRun(MetadataBase):
     '''
 
     __tablename__ = 'backtest_run'
+    __table_args__ = (
+        CheckConstraint('initial_capital > 0', name='check_initial_capital_positive'),
+        CheckConstraint('start_date <= end_date', name='check_date_range_valid'),
+        CheckConstraint('commission_rate >= 0', name='check_commission_rate_non_negative'),
+        CheckConstraint('slippage_rate >= 0', name='check_slippage_rate_non_negative'),
+    )
 
     id:                         Mapped[str]         = mapped_column(UUID(as_uuid=False), primary_key=True, server_default=func.gen_random_uuid())
-    strategy_id:                Mapped[str]         = mapped_column(UUID(as_uuid=False), ForeignKey('strategy.id'))
+    strategy_id:                Mapped[str]         = mapped_column(UUID(as_uuid=False), ForeignKey('strategy.id', ondelete='CASCADE'))
 
     # Date range
     start_date:                 Mapped[Date]        = mapped_column(Date)
@@ -349,6 +356,12 @@ class Trade(MetadataBase):
     '''
 
     __tablename__ = 'trade'
+    __table_args__ = (
+        CheckConstraint('shares > 0', name='check_shares_positive'),
+        CheckConstraint('entry_price > 0', name='check_entry_price_positive'),
+        CheckConstraint('exit_price IS NULL OR exit_price > 0', name='check_exit_price_positive'),
+        CheckConstraint('exit_date IS NULL OR exit_date >= entry_date', name='check_exit_after_entry'),
+    )
 
     id:                         Mapped[int]         = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     backtest_run_id:            Mapped[str]         = mapped_column(UUID(as_uuid=False), ForeignKey('backtest_run.id', ondelete='CASCADE'))
@@ -395,7 +408,12 @@ class PortfolioSnapshot(MetadataBase):
     '''
 
     __tablename__ = 'portfolio_snapshot'
-    __table_args__ = UniqueConstraint("backtest_run_id", "snapshot_date"),
+    __table_args__ = (
+        UniqueConstraint("backtest_run_id", "snapshot_date"),
+        CheckConstraint('cash >= 0', name='check_cash_non_negative'),
+        CheckConstraint('holdings_value >= 0', name='check_holdings_value_non_negative'),
+        CheckConstraint('total_value >= 0', name='check_total_value_non_negative'),
+    )
 
     id:                         Mapped[int]         = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     backtest_run_id:            Mapped[str]         = mapped_column(UUID(as_uuid=False), ForeignKey('backtest_run.id', ondelete='CASCADE'))
