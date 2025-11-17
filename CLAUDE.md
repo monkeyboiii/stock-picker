@@ -300,15 +300,141 @@ Uses PostgreSQL LATERAL joins for efficient querying.
 
 ## Testing
 
-- Test files located in `tests/` directory
-- Currently minimal test coverage
-- Test pattern: Mirror app structure with test files
+### Test Structure
 
-**Running Tests:**
-```bash
-# Individual test files
-python tests/ingest.py
+The project uses **pytest** for testing with comprehensive test coverage:
+
 ```
+tests/
+├── conftest.py           # Shared fixtures and test configuration
+├── test_models.py        # Database model tests
+├── test_constants.py     # Constants and enums tests
+├── test_filters.py       # Filter utility tests
+├── test_display.py       # Display utility tests
+├── test_engine.py        # Database engine tests
+└── ingest.py             # Legacy ingest tests (to be migrated)
+```
+
+### Running Tests
+
+**Run all tests:**
+```bash
+# Using pytest (recommended)
+pytest
+
+# With verbose output
+pytest -v
+
+# With coverage report
+pytest --cov=app --cov-report=html
+
+# Run specific test file
+pytest tests/test_models.py
+
+# Run specific test class
+pytest tests/test_models.py::TestStockDaily
+
+# Run specific test function
+pytest tests/test_models.py::TestStockDaily::test_stock_daily_creation
+```
+
+**Run tests with markers:**
+```bash
+# Skip integration tests
+pytest -m "not integration"
+
+# Skip slow tests
+pytest -m "not slow"
+
+# Run only integration tests
+pytest -m "integration"
+```
+
+**Using uv:**
+```bash
+uv run pytest
+uv run pytest --cov=app
+```
+
+### Test Coverage
+
+**Current test modules:**
+- ✅ **Models** (`test_models.py`): Market, Stock, Collection, StockDaily, FeedDaily
+- ✅ **Constants** (`test_constants.py`): CollectionType, trading schedules, holidays
+- ✅ **Filters** (`test_filters.py`): StockFilter enum, filter utilities
+- ✅ **Display** (`test_display.py`): Number formatting, color generation
+- ✅ **Engine** (`test_engine.py`): Database engine creation
+- ⚠️ **Ingestion** (`ingest.py`): Legacy tests for data ingestion
+
+**Areas for future improvement:**
+- Filter logic (tail_scraper.py)
+- Google Sheets integration
+- TDX format generation
+- Backtesting utilities
+
+### Writing New Tests
+
+**Use shared fixtures from conftest.py:**
+```python
+def test_example(db_session, sample_stock):
+    """Example test using fixtures."""
+    db_session.add(sample_stock)
+    db_session.commit()
+
+    retrieved = db_session.query(Stock).first()
+    assert retrieved.code == "600000"
+```
+
+**Available fixtures:**
+- `in_memory_engine`: SQLite in-memory database
+- `db_session`: Database session for testing
+- `mock_engine`, `mock_session`: Mock objects
+- `sample_market`, `sample_stock`, `sample_collection`: Sample model instances
+- `sample_stock_daily`, `sample_feed_daily`: Sample daily data
+- `sample_dataframe`, `stock_daily_dataframe`: Sample pandas DataFrames
+- `temp_env_vars`: Set temporary environment variables
+
+**Test organization:**
+```python
+class TestFeatureName:
+    """Tests for FeatureName."""
+
+    def test_basic_functionality(self):
+        """Test description."""
+        # Arrange
+        input_data = ...
+
+        # Act
+        result = function_under_test(input_data)
+
+        # Assert
+        assert result == expected_value
+
+    @pytest.mark.parametrize("input,expected", [
+        (1, 2),
+        (2, 4),
+    ])
+    def test_with_parameters(self, input, expected):
+        """Test with multiple parameter sets."""
+        assert function(input) == expected
+```
+
+### Continuous Integration
+
+Tests are configured to run automatically via:
+- pytest.ini in pyproject.toml
+- Markers for integration and slow tests
+- Coverage reporting
+
+### Test Best Practices
+
+1. **Use descriptive test names** - Test name should describe what is being tested
+2. **One assertion per test** - Keep tests focused (exceptions for related assertions)
+3. **Use fixtures for setup** - Avoid repetitive setup code
+4. **Test edge cases** - Include boundary values, empty inputs, None values
+5. **Mock external dependencies** - Don't call real APIs or databases in unit tests
+6. **Keep tests fast** - Use in-memory databases and mocks
+7. **Use parametrize for similar tests** - Avoid code duplication
 
 ## Git Workflow
 
