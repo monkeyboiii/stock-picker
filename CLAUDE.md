@@ -65,8 +65,9 @@ stock-picker/
 ├── tests/                     # Test files
 │   └── ingest.py
 ├── reports/                   # Generated reports (gitignored)
-├── requirements.txt           # Production dependencies
-├── requirements-dev.txt       # Development dependencies (matplotlib, ruff)
+├── pyproject.toml             # Modern Python project configuration (PEP 621)
+├── requirements.txt           # Legacy production dependencies (use pyproject.toml)
+├── requirements-dev.txt       # Legacy dev dependencies (use pyproject.toml)
 ├── example.env                # Environment template
 └── README.md                  # User documentation
 ```
@@ -141,10 +142,28 @@ The application operates through well-defined states:
    GOOGLE_SHEET_ID=<sheet_id>
    ```
 
-3. **Dependencies**:
+3. **Dependencies** (choose one method):
+
+   **Modern approach (recommended - using uv):**
    ```bash
+   # Install uv if not already installed
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+
+   # Install all dependencies including dev
+   uv pip install -e ".[dev]"
+
+   # Or install only production dependencies
+   uv pip install -e .
+   ```
+
+   **Traditional approach (using pip):**
+   ```bash
+   pip install -e .  # Production (from pyproject.toml)
+   pip install -e ".[dev]"  # Including dev dependencies
+
+   # Legacy method (still works)
    pip install -r requirements.txt  # Production
-   pip install -r requirements-dev.txt  # Development (includes matplotlib, ruff)
+   pip install -r requirements-dev.txt  # Development
    ```
 
 4. **Google Credentials**:
@@ -153,10 +172,20 @@ The application operates through well-defined states:
 
 ### Running the Application
 
-**Module Import Pattern:**
+**After installing with pip/uv (recommended):**
+```bash
+stock-picker [command] [options]
+```
+
+**Direct module execution (alternative):**
 ```bash
 export PYTHONPATH=.
 python app/main.py [command] [options]
+```
+
+**Using uv run (no install needed):**
+```bash
+uv run stock-picker [command] [options]
 ```
 
 **Common Commands:**
@@ -380,6 +409,8 @@ GOOGLE_SHEET_ID=<your_sheet_id>
 
 ## Dependencies Summary
 
+**All dependencies are now managed in `pyproject.toml` (PEP 621 compliant).**
+
 **Core:**
 - sqlalchemy==2.0.36 - ORM and database toolkit
 - akshare==1.16.44 - Chinese stock data API
@@ -393,32 +424,137 @@ GOOGLE_SHEET_ID=<your_sheet_id>
 - gspread==6.1.4 - Google Sheets integration
 - gspread-formatting==1.2.0
 
-**Development:**
+**Development (optional extras):**
 - mypy==1.15.0 - Type checking
 - ruff==0.9.10 - Linting and formatting
 - matplotlib==3.10.0 - Plotting for backtests
 
+**Installation:**
+```bash
+# With uv (fast, recommended)
+uv pip install -e ".[dev]"
+
+# With pip
+pip install -e ".[dev]"
+
+# Production only (no dev dependencies)
+uv pip install -e .
+```
+
 ## Quick Reference Commands
 
 ```bash
-# First-time setup
+# First-time setup (using installed command)
+stock-picker init -r -lll
+
+# Or using direct module execution
 python app/main.py init -r -lll
 
+# Or using uv run (no install needed)
+uv run stock-picker init -r -lll
+
 # Daily automation (once at State 5)
-python app/main.py run
+stock-picker run
 
 # Dry run filtering (no DB writes)
-python app/main.py run -t filter --dryrun
+stock-picker run -t filter --dryrun
 
 # Verbose debugging
-python app/main.py run -vvv
+stock-picker run -vvv
 
 # Store logs
-python app/main.py run -S -t
+stock-picker run -S -t
 
 # Specific date
-python app/main.py run --date 2025-11-17
+stock-picker run --date 2025-11-17
+
+# Linting and formatting
+ruff check .
+ruff format .
+
+# Type checking
+mypy app/
 ```
+
+## Modern Python Tooling (uv Workflow)
+
+This project now supports modern Python package management with **uv** - an extremely fast Python package installer and resolver written in Rust.
+
+### Why uv?
+
+- **10-100x faster** than pip for dependency resolution and installation
+- **Drop-in replacement** for pip (same command syntax)
+- **Better dependency resolution** with modern PEP standards
+- **No virtual environment needed** - uv manages environments automatically
+
+### Common uv Workflows
+
+**Quick start (no installation):**
+```bash
+# Run commands directly without installing
+uv run stock-picker init -r -lll
+uv run stock-picker run
+```
+
+**Development workflow:**
+```bash
+# Install in editable mode with dev dependencies
+uv pip install -e ".[dev]"
+
+# Run the installed command
+stock-picker run
+
+# Update dependencies
+uv pip install --upgrade -e ".[dev]"
+```
+
+**Sync dependencies from pyproject.toml:**
+```bash
+# Create/update virtual environment from pyproject.toml
+uv venv
+source .venv/bin/activate  # On Unix
+# or .venv\Scripts\activate  # On Windows
+
+# Sync to exact dependencies in pyproject.toml
+uv pip sync
+```
+
+**Adding new dependencies:**
+```bash
+# Add to pyproject.toml manually, then:
+uv pip install -e ".[dev]"
+
+# Or install directly (update pyproject.toml manually after)
+uv pip install package-name==version
+```
+
+### Project Structure Notes
+
+- **pyproject.toml**: Single source of truth for dependencies (PEP 621)
+- **requirements.txt**: Legacy support (can be removed in future)
+- **requirements-dev.txt**: Legacy support (can be removed in future)
+
+### Ruff Configuration
+
+Ruff is configured in `pyproject.toml` with:
+- Line length: 120 characters
+- Python 3.10+ target
+- Enabled checks: pycodestyle, pyflakes, isort, flake8-bugbear, comprehensions, pyupgrade
+- Auto-formatting with double quotes and 4-space indentation
+
+**Usage:**
+```bash
+ruff check .           # Lint all files
+ruff check --fix .     # Auto-fix issues
+ruff format .          # Format code
+```
+
+### MyPy Configuration
+
+MyPy is configured for gradual typing:
+- Type checking with Pydantic plugin support
+- Missing imports ignored for external libraries (akshare, gspread)
+- Future goal: Enable strict mode (`disallow_untyped_defs = true`)
 
 ---
 
