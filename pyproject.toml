@@ -33,6 +33,9 @@ dependencies = [
     "pandas>=2.0.0",  # Required by akshare but not explicitly listed
     "numpy>=1.24.0",  # Required for backtest metrics
     "pyyaml>=6.0.0",  # Required for strategy DSL
+    "fastapi>=0.115.0",  # REST API framework
+    "uvicorn[standard]>=0.32.0",  # ASGI server
+    "python-multipart>=0.0.9",  # For file uploads
 ]
 
 [project.optional-dependencies]
