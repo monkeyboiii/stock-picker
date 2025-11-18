@@ -137,8 +137,9 @@ async def root():
 async def health():
     """Health check endpoint with database connectivity test"""
     try:
+        from sqlalchemy import text
         db = SessionLocal()
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         db.close()
         return HealthResponse(status="healthy", version="1.0.0")
     except Exception as e:

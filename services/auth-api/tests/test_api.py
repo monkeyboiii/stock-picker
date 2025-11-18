@@ -27,8 +27,9 @@ def test_health_endpoint(client):
     # May return 200 or 503 depending on database availability
     assert response.status_code in [200, 503]
     data = response.json()
-    assert "status" in data
-    assert "version" in data
+    # On success, returns HealthResponse with status/version
+    # On failure, returns {"detail": "..."}
+    assert ("status" in data and "version" in data) or "detail" in data
 
 
 def test_openapi_schema(client):
