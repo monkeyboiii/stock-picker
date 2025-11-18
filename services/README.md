@@ -24,17 +24,19 @@ This directory contains all Python backend services (FastAPI microservices).
 - **Purpose**: Technical indicators, risk analytics, optimization
 - **Port**: 8005
 
-### `auth-api/` (Phase 3)
-- **Tech Stack**: Python 3.13 + FastAPI + JWT
-- **Database**: PostgreSQL + Redis
-- **Purpose**: Authentication, OAuth2, RBAC
+### `auth-api/` ✅ (Phase 3 - Complete)
+- **Tech Stack**: Python 3.13 + FastAPI + JWT + bcrypt
+- **Database**: PostgreSQL
+- **Purpose**: User authentication, JWT tokens, RBAC, session management
 - **Port**: 8003
+- **Endpoints**: 9 REST endpoints (register, login, logout, refresh, profile, users)
 
-### `notification-api/` (Phase 3)
-- **Tech Stack**: Python 3.13 + FastAPI + Celery
-- **Database**: PostgreSQL + Redis
-- **Purpose**: Email, SMS, push notifications
+### `notification-api/` ✅ (Phase 3 - Complete)
+- **Tech Stack**: Python 3.13 + FastAPI
+- **Providers**: SendGrid (email), Twilio (SMS), FCM (push) - stub implementations
+- **Purpose**: Multi-channel notifications (email, SMS, push)
 - **Port**: 8004
+- **Endpoints**: 4 REST endpoints (email, sms, push, templates)
 
 ### `data-ingestion/` (Phase 2)
 - **Tech Stack**: Python 3.13 + Celery Beat
@@ -56,7 +58,7 @@ cd services/trading-api && uv sync
 # Run a service locally
 cd services/trading-api && uv run uvicorn app.main:app --reload --port 8000
 
-# Run all services with Docker Compose (coming in Phase 3)
+# Run all services with Docker Compose ✅ (Phase 3)
 docker-compose -f infrastructure/docker/docker-compose.dev.yml up
 ```
 
@@ -65,7 +67,8 @@ docker-compose -f infrastructure/docker/docker-compose.dev.yml up
 Each service auto-generates OpenAPI specs at runtime:
 - **Trading API**: http://localhost:8000/openapi.json (Swagger: http://localhost:8000/docs)
 - **Backtest API**: http://localhost:8001/openapi.json (Swagger: http://localhost:8001/docs)
+- **Auth API**: http://localhost:8003/openapi.json (Swagger: http://localhost:8003/docs) ✅
+- **Notification API**: http://localhost:8004/openapi.json (Swagger: http://localhost:8004/docs) ✅
 - **Calculation API**: http://localhost:8005/openapi.json (Phase 4)
-- **Auth API**: http://localhost:8003/openapi.json (Phase 3)
 
-These specs are used to generate TypeScript clients in `packages/api/` (Phase 6).
+These specs will be used to generate TypeScript clients in `packages/api/` (Phase 6).
