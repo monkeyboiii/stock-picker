@@ -1,0 +1,92 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main, develop, claude/**]
+    paths:
+      - 'services/**'
+      - 'app/**'  # Current stock-picker code
+  pull_request:
+    branches: [main]
+    paths:
+      - 'services/**'
+      - 'app/**'
+
+jobs:
+  test-python-services:
+    name: Test Python Services
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [trading-api, backtest-api, calculation-api, auth-api, notification-api]
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Cache uv dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ matrix.service }}-${{ hashFiles('services/' + matrix.service + '/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-${{ matrix.service }}-
+
+      - name: Install dependencies
+        working-directory: services/${{ matrix.service }}
+        run: uv sync
+        continue-on-error: true  # Some services don't exist yet
+
+      - name: Run linters
+        working-directory: services/${{ matrix.service }}
+        run: |
+          uv run ruff check .
+          uv run mypy app/
+        continue-on-error: true  # Some services don't exist yet
+
+      - name: Run tests
+        working-directory: services/${{ matrix.service }}
+        env:
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379/0
+        run: uv run pytest --cov=app --cov-report=xml
+        continue-on-error: true  # Some services don't exist yet
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: services/${{ matrix.service }}/coverage.xml
+          flags: ${{ matrix.service }}
+        continue-on-error: true

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./base.json",
+  "compilerOptions": {
+    // React-specific
+    "jsx": "preserve",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+
+    // Next.js / React Native compatibility
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+
+    // For incremental builds
+    "incremental": true,
+
+    // Plugin support (for Next.js)
+    "plugins": [{ "name": "next" }]
+  },
+  "include": ["src", "next-env.d.ts"],
+  "exclude": ["node_modules", "dist", ".next", "out"]
+}
