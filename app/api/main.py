@@ -13,13 +13,17 @@ Run with:
     uvicorn app.api.main:app --host 0.0.0.0 --port 8000
 """
 
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
-from app.api.dependencies import get_engine
+from app.api.cache_middleware import add_http_cache_middleware
+from app.api.dependencies import init_engine, dispose_engine, get_engine
+from app.api.exceptions import register_exception_handlers
+from app.api.middleware import configure_middleware, configure_rate_limiting, get_metrics_response
 from app.constant.version import VERSION
 
 
@@ -28,21 +32,24 @@ async def lifespan(app: FastAPI):
     """
     Lifespan context manager for FastAPI
 
-    Handles startup and shutdown events.
+    Handles startup and shutdown events with proper resource management.
     """
     # Startup
     logger.info("Starting Stock Picker API...")
     logger.info(f"Version: {VERSION}")
 
-    # Initialize database engine
-    engine = get_engine()
-    logger.info(f"Database connected: {engine.url}")
+    # Initialize database engine with connection pooling
+    engine = init_engine()
+    app.state.engine = engine
+    logger.info(f"Database connected: {engine.url.database}")
+    logger.info(f"Connection pool: size={engine.pool.size()}, max_overflow={engine.pool._max_overflow}")
 
     yield
 
     # Shutdown
     logger.info("Shutting down Stock Picker API...")
-    engine.dispose()
+    dispose_engine()
+    logger.success("Shutdown complete")
 
 
 # Create FastAPI application
@@ -56,14 +63,24 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
 )
 
-# CORS configuration
+# CORS configuration (restrict in production)
+allowed_origins = os.getenv("CORS_ALLOWED_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify allowed origins
+    allow_origins=allowed_origins,  # Configure via environment
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
+    max_age=3600,
 )
+
+# Configure middleware (metrics, rate limiting, request tracking, HTTP caching)
+configure_middleware(app)
+configure_rate_limiting(app)
+add_http_cache_middleware(app)
+
+# Register exception handlers
+register_exception_handlers(app)
 
 
 # Health check endpoint
@@ -85,6 +102,17 @@ async def health_check():
     )
 
 
+# Prometheus metrics endpoint
+@app.get("/metrics", tags=["Monitoring"], include_in_schema=False)
+async def metrics():
+    """
+    Prometheus metrics endpoint
+
+    Returns metrics in Prometheus text format for scraping.
+    """
+    return get_metrics_response()
+
+
 # Root endpoint
 @app.get("/", tags=["Root"])
 async def root():
@@ -97,7 +125,8 @@ async def root():
         "message": "Stock Picker Backtesting API",
         "version": VERSION,
         "docs": "/api/docs",
-        "health": "/api/health"
+        "health": "/api/health",
+        "metrics": "/metrics"
     }
 
 

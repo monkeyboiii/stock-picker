@@ -487,15 +487,24 @@ class BacktestEngine:
         """
         Check and execute exit conditions for open positions
 
+        Uses batch price loading to avoid N+1 query problem.
+
         Args:
             current_date: Current trading date
             engine: Database engine
         """
+        if not self.portfolio.positions:
+            return
+
+        # Batch load all current prices (fix N+1 query problem)
+        stock_codes = list(self.portfolio.positions.keys())
+        current_prices = self.signal_engine.get_current_prices_batch(
+            stock_codes, current_date, engine
+        )
+
         for stock_code, position in list(self.portfolio.positions.items()):
-            # Get current price
-            current_price = self.signal_engine.get_current_price(
-                stock_code, current_date, engine
-            )
+            # Get price from batch-loaded data
+            current_price = current_prices.get(stock_code)
 
             if not current_price:
                 logger.warning(f"No price data for {stock_code} on {current_date}")
@@ -574,12 +583,23 @@ class BacktestEngine:
         """
         Close all remaining positions at backtest end
 
+        Uses batch price loading to avoid N+1 query problem.
+
         Args:
             final_date: Final trading date
             engine: Database engine
         """
-        for stock_code in list(self.portfolio.positions.keys()):
-            price = self.signal_engine.get_current_price(stock_code, final_date, engine)
+        if not self.portfolio.positions:
+            return
+
+        # Batch load all final prices (fix N+1 query problem)
+        stock_codes = list(self.portfolio.positions.keys())
+        final_prices = self.signal_engine.get_current_prices_batch(
+            stock_codes, final_date, engine
+        )
+
+        for stock_code in stock_codes:
+            price = final_prices.get(stock_code)
 
             if price:
                 self.portfolio.close_position(

@@ -55,19 +55,21 @@ class TestConnectionManager:
         assert "connected_at" in connection_manager.connection_metadata[client_id]
         assert "rooms" in connection_manager.connection_metadata[client_id]
 
-    def test_disconnect(self, connection_manager, mock_websocket):
+    @pytest.mark.anyio
+    async def test_disconnect(self, connection_manager, mock_websocket):
         """Test disconnecting a WebSocket"""
         client_id = "test-client-1"
 
         # Manually add connection (bypass async connect)
-        connection_manager.active_connections[client_id] = mock_websocket
-        connection_manager.connection_metadata[client_id] = {
-            "connected_at": datetime.now().isoformat(),
-            "rooms": set()
-        }
+        async with connection_manager._lock:
+            connection_manager.active_connections[client_id] = mock_websocket
+            connection_manager.connection_metadata[client_id] = {
+                "connected_at": datetime.now().isoformat(),
+                "rooms": set()
+            }
 
         # Disconnect
-        connection_manager.disconnect(client_id)
+        await connection_manager.disconnect(client_id)
 
         # Verify client was removed
         assert client_id not in connection_manager.active_connections
@@ -120,20 +122,22 @@ class TestConnectionManager:
         ws1.send_json.assert_awaited_once_with(message)
         ws2.send_json.assert_awaited_once_with(message)
 
-    def test_join_room(self, connection_manager, mock_websocket):
+    @pytest.mark.anyio
+    async def test_join_room(self, connection_manager, mock_websocket):
         """Test joining a room"""
         client_id = "test-client-1"
         room = "backtest:12345"
 
         # Add connection
-        connection_manager.active_connections[client_id] = mock_websocket
-        connection_manager.connection_metadata[client_id] = {
-            "connected_at": datetime.now().isoformat(),
-            "rooms": set()
-        }
+        async with connection_manager._lock:
+            connection_manager.active_connections[client_id] = mock_websocket
+            connection_manager.connection_metadata[client_id] = {
+                "connected_at": datetime.now().isoformat(),
+                "rooms": set()
+            }
 
         # Join room
-        result = connection_manager.join_room(client_id, room)
+        result = await connection_manager.join_room(client_id, room)
 
         # Verify join was successful
         assert result is True
@@ -141,26 +145,29 @@ class TestConnectionManager:
         assert client_id in connection_manager.rooms[room]
         assert room in connection_manager.connection_metadata[client_id]["rooms"]
 
-    def test_join_room_nonexistent_client(self, connection_manager):
+    @pytest.mark.anyio
+    async def test_join_room_nonexistent_client(self, connection_manager):
         """Test joining a room with non-existent client"""
-        result = connection_manager.join_room("nonexistent-client", "test-room")
+        result = await connection_manager.join_room("nonexistent-client", "test-room")
         assert result is False
 
-    def test_leave_room(self, connection_manager, mock_websocket):
+    @pytest.mark.anyio
+    async def test_leave_room(self, connection_manager, mock_websocket):
         """Test leaving a room"""
         client_id = "test-client-1"
         room = "backtest:12345"
 
         # Add connection and join room
-        connection_manager.active_connections[client_id] = mock_websocket
-        connection_manager.connection_metadata[client_id] = {
-            "connected_at": datetime.now().isoformat(),
-            "rooms": {room}
-        }
-        connection_manager.rooms[room] = {client_id}
+        async with connection_manager._lock:
+            connection_manager.active_connections[client_id] = mock_websocket
+            connection_manager.connection_metadata[client_id] = {
+                "connected_at": datetime.now().isoformat(),
+                "rooms": {room}
+            }
+            connection_manager.rooms[room] = {client_id}
 
         # Leave room
-        result = connection_manager.leave_room(client_id, room)
+        result = await connection_manager.leave_room(client_id, room)
 
         # Verify leave was successful
         assert result is True
@@ -195,67 +202,77 @@ class TestConnectionManager:
         ws2.send_json.assert_awaited_once_with(message)
         ws3.send_json.assert_not_awaited()  # Not in room
 
-    def test_get_room_members(self, connection_manager):
+    @pytest.mark.anyio
+    async def test_get_room_members(self, connection_manager):
         """Test getting list of room members"""
         room = "backtest:12345"
         members = {"client-1", "client-2", "client-3"}
 
-        connection_manager.rooms[room] = members
+        async with connection_manager._lock:
+            connection_manager.rooms[room] = members
 
         # Get members
-        result = connection_manager.get_room_members(room)
+        result = await connection_manager.get_room_members(room)
 
         # Verify all members are returned
         assert set(result) == members
 
-    def test_get_room_members_nonexistent_room(self, connection_manager):
+    @pytest.mark.anyio
+    async def test_get_room_members_nonexistent_room(self, connection_manager):
         """Test getting members of non-existent room"""
-        result = connection_manager.get_room_members("nonexistent-room")
+        result = await connection_manager.get_room_members("nonexistent-room")
         assert result == []
 
-    def test_get_active_connections_count(self, connection_manager):
+    @pytest.mark.anyio
+    async def test_get_active_connections_count(self, connection_manager):
         """Test getting count of active connections"""
         # Add connections
-        connection_manager.active_connections["client-1"] = MagicMock()
-        connection_manager.active_connections["client-2"] = MagicMock()
-        connection_manager.active_connections["client-3"] = MagicMock()
+        async with connection_manager._lock:
+            connection_manager.active_connections["client-1"] = MagicMock()
+            connection_manager.active_connections["client-2"] = MagicMock()
+            connection_manager.active_connections["client-3"] = MagicMock()
 
         # Get count
-        count = connection_manager.get_active_connections_count()
+        count = await connection_manager.get_active_connections_count()
 
         assert count == 3
 
-    def test_get_rooms_count(self, connection_manager):
+    @pytest.mark.anyio
+    async def test_get_rooms_count(self, connection_manager):
         """Test getting count of active rooms"""
         # Add rooms
-        connection_manager.rooms["room-1"] = {"client-1"}
-        connection_manager.rooms["room-2"] = {"client-2"}
+        async with connection_manager._lock:
+            connection_manager.rooms["room-1"] = {"client-1"}
+            connection_manager.rooms["room-2"] = {"client-2"}
 
         # Get count
-        count = connection_manager.get_rooms_count()
+        count = await connection_manager.get_rooms_count()
 
         assert count == 2
 
-    def test_get_connection_info(self, connection_manager):
+    @pytest.mark.anyio
+    async def test_get_connection_info(self, connection_manager):
         """Test getting connection metadata"""
         client_id = "test-client-1"
 
         # Add connection with metadata
-        connection_manager.connection_metadata[client_id] = {
-            "connected_at": "2025-11-17T10:00:00",
-            "rooms": {"room-1", "room-2"}
-        }
+        async with connection_manager._lock:
+            connection_manager.connection_metadata[client_id] = {
+                "connected_at": "2025-11-17T10:00:00",
+                "rooms": {"room-1", "room-2"}
+            }
 
         # Get info
-        info = connection_manager.get_connection_info(client_id)
+        info = await connection_manager.get_connection_info(client_id)
 
         # Verify info
         assert info["connected_at"] == "2025-11-17T10:00:00"
         assert set(info["rooms"]) == {"room-1", "room-2"}
 
-    def test_get_connection_info_nonexistent_client(self, connection_manager):
+    @pytest.mark.anyio
+    async def test_get_connection_info_nonexistent_client(self, connection_manager):
         """Test getting info for non-existent client"""
-        info = connection_manager.get_connection_info("nonexistent-client")
+        info = await connection_manager.get_connection_info("nonexistent-client")
         assert info == {}
 
 
