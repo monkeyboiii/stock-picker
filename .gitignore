@@ -182,3 +182,21 @@ reports/
 
 # google api
 credentials.json
+
+# Node.js / Frontend
+node_modules/
+.next/
+.turbo/
+*.tsbuildinfo
+out/
+
+# Build outputs
+dist/
+.nuxt/
+.output/
+.vercel/
+
+# Editor
+.idea/
+.vscode/settings.json
+.vscode/launch.json
