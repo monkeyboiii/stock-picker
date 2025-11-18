@@ -124,6 +124,27 @@ services:
     networks:
       - stock-picker-network
 
+  # Calculation API - Technical indicators, risk analytics, portfolio optimization
+  calculation-api:
+    build:
+      context: ../../services/calculation-api
+      dockerfile: Dockerfile
+    container_name: stock-picker-calculation-api
+    environment:
+      # Redis configuration (optional - for future caching)
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      LOG_LEVEL: INFO
+    ports:
+      - "8005:8005"
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../../services/calculation-api/app:/app/app  # Hot reload
+    networks:
+      - stock-picker-network
+
 networks:
   stock-picker-network:
     driver: bridge

@@ -1,0 +1,1 @@
+"""Calculation API application package"""
