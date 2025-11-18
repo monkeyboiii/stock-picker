@@ -12,6 +12,21 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.constant.trading import (
+    DEFAULT_COMMISSION_RATE,
+    DEFAULT_INITIAL_CAPITAL,
+    DEFAULT_MAX_POSITIONS,
+    DEFAULT_PAGE_SIZE,
+    DEFAULT_SLIPPAGE_RATE,
+    MAX_BACKTEST_YEARS,
+    MAX_COMMISSION_RATE,
+    MAX_INITIAL_CAPITAL,
+    MAX_MAX_POSITIONS,
+    MAX_PAGE_SIZE,
+    MAX_SLIPPAGE_RATE,
+    MIN_PAGE_SIZE,
+)
+
 
 # Request models
 
@@ -25,27 +40,27 @@ class BacktestRunRequest(BaseModel):
     end_date: date = Field(..., description="Backtest end date")
 
     initial_capital: Decimal = Field(
-        Decimal("1000000.0"),
+        DEFAULT_INITIAL_CAPITAL,
         gt=0,
-        le=Decimal("1000000000.0"),  # Max 1 billion
+        le=MAX_INITIAL_CAPITAL,
         description="Initial capital in CNY (must be positive)"
     )
     commission_rate: Decimal = Field(
-        Decimal("0.0003"),
+        DEFAULT_COMMISSION_RATE,
         ge=0,
-        le=Decimal("0.1"),  # Max 10%
-        description="Commission rate (default 0.03%)"
+        le=MAX_COMMISSION_RATE,
+        description=f"Commission rate (default {float(DEFAULT_COMMISSION_RATE) * 100}%)"
     )
     slippage_rate: Decimal = Field(
-        Decimal("0.001"),
+        DEFAULT_SLIPPAGE_RATE,
         ge=0,
-        le=Decimal("0.1"),  # Max 10%
-        description="Slippage rate (default 0.1%)"
+        le=MAX_SLIPPAGE_RATE,
+        description=f"Slippage rate (default {float(DEFAULT_SLIPPAGE_RATE) * 100}%)"
     )
     max_positions: int = Field(
-        20,
+        DEFAULT_MAX_POSITIONS,
         ge=1,
-        le=100,
+        le=MAX_MAX_POSITIONS,
         description="Maximum concurrent positions"
     )
 
@@ -67,11 +82,12 @@ class BacktestRunRequest(BaseModel):
                 f"end_date ({self.end_date}) must be after start_date ({self.start_date})"
             )
 
-        # Check date range is not too long (max 10 years)
+        # Check date range is not too long (max years from constants)
         days_diff = (self.end_date - self.start_date).days
-        if days_diff > 3650:  # ~10 years
+        max_days = MAX_BACKTEST_YEARS * 365
+        if days_diff > max_days:
             raise ValueError(
-                f"Date range too long ({days_diff} days). Maximum is 10 years (3650 days)"
+                f"Date range too long ({days_diff} days). Maximum is {MAX_BACKTEST_YEARS} years ({max_days} days)"
             )
 
         return self
@@ -130,7 +146,7 @@ class PaginationParams(BaseModel):
     """Pagination parameters"""
 
     page: int = Field(1, ge=1, description="Page number (1-indexed)")
-    page_size: int = Field(20, ge=1, le=100, description="Items per page")
+    page_size: int = Field(DEFAULT_PAGE_SIZE, ge=MIN_PAGE_SIZE, le=MAX_PAGE_SIZE, description="Items per page")
 
     @property
     def offset(self) -> int:

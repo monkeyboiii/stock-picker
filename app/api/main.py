@@ -20,6 +20,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
+from app.api.cache_middleware import add_http_cache_middleware
 from app.api.dependencies import init_engine, dispose_engine, get_engine
 from app.api.exceptions import register_exception_handlers
 from app.api.middleware import configure_middleware, configure_rate_limiting, get_metrics_response
@@ -73,9 +74,10 @@ app.add_middleware(
     max_age=3600,
 )
 
-# Configure middleware (metrics, rate limiting, request tracking)
+# Configure middleware (metrics, rate limiting, request tracking, HTTP caching)
 configure_middleware(app)
 configure_rate_limiting(app)
+add_http_cache_middleware(app)
 
 # Register exception handlers
 register_exception_handlers(app)

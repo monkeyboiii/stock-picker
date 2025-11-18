@@ -27,6 +27,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import Enum as SQLAlchemyEnum
 
 from app.constant.collection import CollectionType
+from app.constant.trading import DEFAULT_COMMISSION_RATE, DEFAULT_INITIAL_CAPITAL, DEFAULT_SLIPPAGE_RATE
 from app.display.utils import ten_thousand_format
 
 
@@ -314,11 +315,11 @@ class BacktestRun(MetadataBase):
     # Date range
     start_date:                 Mapped[Date]        = mapped_column(Date)
     end_date:                   Mapped[Date]        = mapped_column(Date)
-    initial_capital:            Mapped[Numeric]     = mapped_column(Numeric(15, 2), default=1000000.00)
+    initial_capital:            Mapped[Numeric]     = mapped_column(Numeric(15, 2), default=DEFAULT_INITIAL_CAPITAL)
 
     # Configuration
-    commission_rate:            Mapped[Numeric]     = mapped_column(Numeric(5, 4), default=0.0003)  # 0.03%
-    slippage_rate:              Mapped[Numeric]     = mapped_column(Numeric(5, 4), default=0.001)   # 0.1%
+    commission_rate:            Mapped[Numeric]     = mapped_column(Numeric(5, 4), default=DEFAULT_COMMISSION_RATE)
+    slippage_rate:              Mapped[Numeric]     = mapped_column(Numeric(5, 4), default=DEFAULT_SLIPPAGE_RATE)
 
     # Results (computed after run)
     total_return:               Mapped[Numeric]     = mapped_column(Numeric(10, 4), nullable=True)
