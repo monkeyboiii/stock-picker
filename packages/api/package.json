@@ -1,0 +1,60 @@
+{
+  "name": "@repo/api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Type-safe API clients generated from OpenAPI specs",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./trading": {
+      "import": "./dist/trading.mjs",
+      "require": "./dist/trading.js",
+      "types": "./dist/trading.d.ts"
+    },
+    "./backtest": {
+      "import": "./dist/backtest.mjs",
+      "require": "./dist/backtest.js",
+      "types": "./dist/backtest.d.ts"
+    },
+    "./auth": {
+      "import": "./dist/auth.mjs",
+      "require": "./dist/auth.js",
+      "types": "./dist/auth.d.ts"
+    },
+    "./calculation": {
+      "import": "./dist/calculation.mjs",
+      "require": "./dist/calculation.js",
+      "types": "./dist/calculation.d.ts"
+    },
+    "./notification": {
+      "import": "./dist/notification.mjs",
+      "require": "./dist/notification.js",
+      "types": "./dist/notification.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "eslint src/",
+    "clean": "rm -rf dist .turbo",
+    "codegen": "node scripts/codegen.js"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.12.6",
+    "openapi-typescript-helpers": "^0.0.15"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^22.10.5",
+    "eslint": "^9.18.0",
+    "openapi-typescript": "^7.5.4",
+    "tsup": "^8.3.7",
+    "typescript": "^5.7.3"
+  }
+}

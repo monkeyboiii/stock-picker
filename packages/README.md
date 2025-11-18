@@ -1,56 +1,102 @@
 # Shared TypeScript Packages
 
-This directory contains shared TypeScript packages used across frontend applications.
+This directory contains shared TypeScript packages used across web, mobile, and desktop applications.
 
 ## Packages
 
-### `@repo/api` (Coming Soon - Phase 6)
-- **Purpose**: Type-safe API clients generated from OpenAPI specs
-- **Tech**: openapi-typescript, openapi-fetch
-- **Auto-generated**: From FastAPI OpenAPI specs
+### @repo/api ✅
 
-### `@repo/auth` (Coming Soon - Phase 6)
-- **Purpose**: Authentication utilities and hooks
-- **Features**:
-  - `useAuth()` hook
-  - `AuthProvider` context
-  - Token storage (web: localStorage, mobile: AsyncStorage)
-  - Session management
+Type-safe API clients generated from OpenAPI specs.
 
-### `@repo/ui` (Coming Soon - Phase 6)
-- **Purpose**: Universal UI components (web + React Native)
-- **Features**:
-  - Design tokens (colors, spacing, typography)
-  - Button, Input, Card, etc.
-  - Works on both web and mobile
+**Features:**
+- Auto-generated from FastAPI OpenAPI specs
+- Full TypeScript type safety
+- Support for all backend services (trading, backtest, auth, calculation, notification)
+- Built on `openapi-fetch` for lightweight, type-safe HTTP requests
 
-### `@repo/charts` (Coming Soon - Phase 6)
-- **Purpose**: Chart components for financial data
-- **Features**:
-  - EquityCurve chart
-  - TradeLog table
-  - PerformanceMetrics dashboard
+**Usage:**
+```typescript
+import { tradingClient } from '@repo/api/trading';
 
-### `@repo/config` (Coming Soon - Phase 6)
-- **Purpose**: Shared configuration
-- **Includes**: ESLint configs, TypeScript configs, Tailwind configs
+const { data, error } = await tradingClient.GET('/api/v1/stocks/{code}', {
+  params: { path: { code: '600000' } }
+});
+```
+
+### @repo/auth ✅
+
+Authentication utilities for JWT token management.
+
+**Features:**
+- Cross-platform token storage (web: localStorage)
+- JWT decoding and validation
+- Token expiration checking
+- User info extraction from tokens
+
+**Usage:**
+```typescript
+import { tokenStorage, isTokenExpired, getUserFromToken } from '@repo/auth';
+
+await tokenStorage.setAccessToken(accessToken);
+const user = getUserFromToken(token);
+```
+
+### @repo/ui ✅
+
+Shared UI components and design tokens.
+
+**Features:**
+- Design tokens (colors, spacing)
+- Trading-specific colors (bullish/bearish)
+- Consistent styling across platforms
+
+**Usage:**
+```typescript
+import { colors, spacing } from '@repo/ui';
+
+const styles = {
+  container: { padding: spacing[4], backgroundColor: colors.primary[500] }
+};
+```
+
+### @repo/typescript-config ✅
+
+Shared TypeScript configurations.
+
+**Configurations:**
+- `base.json` - Base config
+- `nextjs.json` - Next.js config
+- `react-library.json` - React library config
 
 ## Development
 
 ```bash
+# Install dependencies
+pnpm install
+
 # Build all packages
-turbo build --filter="@repo/*"
+pnpm build
 
-# Watch mode for development
-turbo dev --filter="@repo/*"
+# Generate API types from OpenAPI
+pnpm codegen
 ```
 
-## Usage in Apps
+## Architecture
 
-```typescript
-// In apps/web or apps/mobile
-import { tradingApi } from '@repo/api'
-import { useAuth } from '@repo/auth'
-import { Button } from '@repo/ui'
-import { EquityCurve } from '@repo/charts'
 ```
+packages/
+├── api/                    # OpenAPI-generated API clients
+├── auth/                   # Authentication utilities
+├── ui/                     # UI components and design tokens
+└── config/                 # Shared configurations
+    └── typescript/         # TypeScript configs
+```
+
+## Type Safety
+
+All packages are fully typed with TypeScript. API types are auto-generated from OpenAPI specs to guarantee backend/frontend sync.
+
+---
+
+**Last Updated:** 2025-11-18
+**Status:** Phase 6 Complete ✅
