@@ -9,13 +9,14 @@
 This document outlines a **pragmatic migration plan** to transform the current `stock-picker` backend service into a production-grade stock analysis and backtesting platform using a carefully selected, unified technology stack.
 
 **Core Philosophy:**
-- **Minimize language diversity**: Python for all backend, Rust for performance-critical calculations
+- **Python-first approach**: All backend services in Python (FastAPI) including calculations
+- **Incremental optimization**: Start with pandas/numpy, optimize with Rust later
 - **Maximize code reuse**: Shared TypeScript packages across web, mobile, and desktop
 - **Type-safe everything**: OpenAPI-generated TypeScript clients from Python services
 - **Modern full-stack**: Next.js/Remix for web, React Native (Expo) for mobile, Electron for desktop
 - **Proven databases**: PostgreSQL for relational data, QuestDB for time-series, Redis for caching
 
-**Timeline:** 10 weeks (phased migration)
+**Timeline:** 8-9 weeks (core platform) + optional Rust optimization phase
 
 ---
 
@@ -59,40 +60,40 @@ This document outlines a **pragmatic migration plan** to transform the current `
                     │  (Caddy/Nginx)  │
                     └────────┬────────┘
                              │
-        ┌────────────────────┼────────────────────┐
-        │                    │                    │
-┌───────▼────────┐  ┌───────▼────────┐  ┌───────▼────────┐
-│  Trading API   │  │  Backtest API  │  │   Auth API     │
-│  (FastAPI)     │  │  (FastAPI)     │  │  (FastAPI)     │
-└───────┬────────┘  └───────┬────────┘  └───────┬────────┘
-        │                    │                    │
-        │           ┌────────▼────────┐           │
-        │           │  Calculation    │           │
-        │           │  Service        │           │
-        │           │  (Rust + gRPC)  │           │
-        │           └────────┬────────┘           │
-        │                    │                    │
-        └────────────────────┼────────────────────┘
-                             │
-        ┌────────────────────┼────────────────────┐
-        │                    │                    │
-┌───────▼────────┐  ┌───────▼────────┐  ┌───────▼────────┐
-│  PostgreSQL    │  │    QuestDB     │  │     Redis      │
-│  (Relational)  │  │  (Time Series) │  │    (Cache)     │
-└────────────────┘  └────────────────┘  └────────────────┘
-        │                    │                    │
-        └────────────────────┼────────────────────┘
-                             │
-                    ┌────────▼────────┐
-                    │   RabbitMQ      │
-                    │  (Message Bus)  │
-                    └─────────────────┘
+    ┌───────────────────────┼───────────────────────┐
+    │                       │                       │
+┌───▼─────────┐  ┌─────────▼────────┐  ┌──────────▼────────┐
+│ Trading API │  │  Backtest API    │  │   Auth API        │
+│  (FastAPI)  │  │   (FastAPI)      │  │   (FastAPI)       │
+└───┬─────────┘  └─────────┬────────┘  └──────────┬────────┘
+    │                       │                       │
+    │              ┌────────▼────────┐              │
+    │              │ Calculation API │              │
+    │              │ (FastAPI +      │              │
+    │              │  pandas/numpy)  │ ← Phase 11-12: Rust
+    │              └────────┬────────┘   (optional)
+    │                       │                       │
+    └───────────────────────┼───────────────────────┘
+                            │
+    ┌───────────────────────┼───────────────────────┐
+    │                       │                       │
+┌───▼─────────┐  ┌─────────▼────────┐  ┌──────────▼────────┐
+│ PostgreSQL  │  │    QuestDB       │  │     Redis         │
+│(Relational) │  │  (Time Series)   │  │    (Cache)        │
+└─────────────┘  └──────────────────┘  └───────────────────┘
+    │                       │                       │
+    └───────────────────────┼───────────────────────┘
+                            │
+                   ┌────────▼────────┐
+                   │   RabbitMQ      │
+                   │  (Message Bus)  │
+                   └─────────────────┘
 ```
 
 ### Key Principles
 
-1. **Python-first backend**: All API services in Python (FastAPI) for consistency
-2. **Rust for performance**: Single calculation service in Rust for all number crunching
+1. **Python everywhere**: All API services in Python (FastAPI) - Trading, Backtest, Auth, Notification, Calculation
+2. **Start simple, optimize later**: Use pandas/numpy initially, migrate to Rust when needed
 3. **TypeScript everywhere frontend**: Next.js/Remix (web) + React Native (mobile/desktop)
 4. **Type safety across boundaries**: OpenAPI → TypeScript codegen
 5. **Maximum code reuse**: Shared packages for API client, auth, UI components
@@ -118,22 +119,28 @@ This document outlines a **pragmatic migration plan** to transform the current `
 - Notification API (FastAPI) - Email, SMS, push notifications
 - Data Ingestion (FastAPI + Celery)
 
-### Calculations: Rust Only
+### Calculations: Python First, Rust Later
 
-**Why Rust instead of Go/C++?**
-- ✅ **Best performance**: Comparable to C++, often faster than Go
-- ✅ **Memory safety**: No segfaults, easier to write correct code than C++
-- ✅ **Modern tooling**: Cargo, built-in testing, excellent documentation
-- ✅ **Python interop**: PyO3 makes Python bindings trivial if needed
-- ✅ **Growing ecosystem**: Ta-lib, polars (dataframes), tokio (async)
-- ✅ **Single language**: Simpler than maintaining Rust + Go + C++
+**Phase 1 (Weeks 1-9): Python Calculation API**
+- ✅ **Immediate value**: Leverage existing calculation code (pandas/numpy)
+- ✅ **Faster to market**: No need to rewrite in Rust initially
+- ✅ **Single language**: All backend in Python for simplicity
+- ✅ **Good enough**: pandas/numpy handle most workloads well
+- ✅ **Easy to evolve**: Can refactor to Rust later when bottlenecks identified
 
-**Calculation Service:**
+**Calculation API (Python + FastAPI):**
 - Technical indicators (MA, RSI, MACD, Bollinger Bands, etc.)
 - Risk analytics (VaR, Sharpe, Sortino, Monte Carlo)
 - Portfolio optimization (mean-variance, efficient frontier)
-- Bulk processing with Rayon (data parallelism)
-- gRPC API for internal communication
+- Built with pandas, numpy, scipy, ta-lib
+- REST API for now, can add gRPC later
+
+**Phase 2 (Optional - Weeks 11-12): Rust Optimization**
+- ⚡ **When needed**: After profiling shows performance bottlenecks
+- ⚡ **Incremental**: Replace hot paths one at a time
+- ⚡ **Rust benefits**: 10-100x speedup for calculation-heavy workloads
+- ⚡ **Polars**: Rust DataFrame library (similar to pandas)
+- ⚡ **gRPC**: Fast binary protocol for internal communication
 
 ### Time-Series: QuestDB
 
@@ -230,6 +237,22 @@ stock-analysis-platform/
 │   │   ├── pyproject.toml
 │   │   └── README.md
 │   │
+│   ├── calculation-api/            # Calculation service (Python)
+│   │   ├── app/
+│   │   │   ├── api/
+│   │   │   │   ├── indicators.py   # Technical indicators endpoints
+│   │   │   │   ├── risk.py         # Risk analytics endpoints
+│   │   │   │   └── optimization.py # Portfolio optimization
+│   │   │   ├── core/
+│   │   │   │   ├── indicators/     # MA, RSI, MACD, etc. (pandas/numpy)
+│   │   │   │   ├── risk/           # VaR, Sharpe, Monte Carlo
+│   │   │   │   └── optimization/   # Mean-variance, efficient frontier
+│   │   │   └── main.py
+│   │   ├── tests/
+│   │   ├── Dockerfile
+│   │   ├── pyproject.toml
+│   │   └── README.md
+│   │
 │   ├── auth-api/                   # Authentication service
 │   │   ├── app/
 │   │   │   ├── api/
@@ -272,36 +295,6 @@ stock-analysis-platform/
 │       ├── Dockerfile
 │       ├── pyproject.toml
 │       └── README.md
-│
-├── calculation/                    # High-performance Rust service
-│   ├── src/
-│   │   ├── indicators/            # Technical indicators
-│   │   │   ├── moving_average.rs
-│   │   │   ├── rsi.rs
-│   │   │   ├── macd.rs
-│   │   │   ├── bollinger.rs
-│   │   │   └── mod.rs
-│   │   ├── risk/                  # Risk analytics
-│   │   │   ├── var.rs             # Value at Risk
-│   │   │   ├── sharpe.rs
-│   │   │   ├── sortino.rs
-│   │   │   ├── monte_carlo.rs
-│   │   │   └── mod.rs
-│   │   ├── optimization/          # Portfolio optimization
-│   │   │   ├── mean_variance.rs
-│   │   │   ├── efficient_frontier.rs
-│   │   │   └── mod.rs
-│   │   ├── grpc/                  # gRPC server
-│   │   │   ├── server.rs
-│   │   │   └── mod.rs
-│   │   └── main.rs
-│   ├── proto/                     # Protocol Buffers
-│   │   └── calculation.proto
-│   ├── benches/                   # Benchmarks
-│   │   └── indicators_bench.rs
-│   ├── Cargo.toml
-│   ├── Dockerfile
-│   └── README.md
 │
 ├── apps/                          # Frontend applications
 │   ├── web/                      # Next.js web application
@@ -451,6 +444,29 @@ stock-analysis-platform/
 ├── README.md
 ├── LICENSE
 └── CHANGELOG.md
+
+# Optional: Rust Calculation Service (Phase 11-12)
+# Only add this when performance optimization is needed
+#
+# calculation-rust/              # Rust calculation service (optional)
+# ├── src/
+# │   ├── indicators/             # Technical indicators (Polars)
+# │   │   ├── moving_average.rs
+# │   │   ├── rsi.rs
+# │   │   ├── macd.rs
+# │   │   └── mod.rs
+# │   ├── risk/                   # Risk analytics
+# │   │   ├── var.rs
+# │   │   ├── sharpe.rs
+# │   │   └── mod.rs
+# │   ├── grpc/                   # gRPC server (Tonic)
+# │   │   └── server.rs
+# │   └── main.rs
+# ├── proto/                      # Protocol Buffers
+# │   └── calculation.proto
+# ├── Cargo.toml
+# ├── Dockerfile
+# └── README.md
 ```
 
 ---
@@ -555,43 +571,44 @@ GET    /api/v1/notifications/preferences
 
 ---
 
-### 5. Calculation Service (Rust)
+### 5. Calculation API Service (Python)
 
-**Single Rust service for all performance-critical calculations.**
+**Python-based calculation service using pandas/numpy/scipy.**
 
 **Responsibilities:**
-- Technical indicators (MA, RSI, MACD, etc.)
-- Risk analytics (VaR, Sharpe, Monte Carlo)
-- Portfolio optimization
-- Bulk data processing (Rayon parallelism)
+- Technical indicators (MA, RSI, MACD, Bollinger Bands, Stochastic, etc.)
+- Risk analytics (VaR, Sharpe, Sortino, Calmar, Monte Carlo)
+- Portfolio optimization (mean-variance, efficient frontier)
+- Bulk data processing with pandas vectorization
 
 **Tech Stack:**
-- Rust 1.70+ + Tonic (gRPC)
-- Ta-lib or custom implementations
-- Polars (DataFrames)
-- Tokio (async runtime)
+- Python 3.13 + FastAPI
+- pandas (DataFrames)
+- numpy (numerical computing)
+- scipy (statistical functions)
+- ta-lib Python bindings (optional)
+- Redis caching for computed results
 
-**gRPC Services:**
-```protobuf
-service IndicatorService {
-  rpc CalculateMA(MARequest) returns (MAResponse);
-  rpc CalculateRSI(RSIRequest) returns (RSIResponse);
-  rpc BatchCalculate(stream BatchRequest) returns (stream BatchResponse);
-}
+**API Endpoints:**
+```
+POST   /api/v1/indicators/ma
+POST   /api/v1/indicators/rsi
+POST   /api/v1/indicators/macd
+POST   /api/v1/indicators/batch
 
-service RiskService {
-  rpc CalculateVaR(VaRRequest) returns (VaRResponse);
-  rpc CalculateSharpe(SharpeRequest) returns (SharpeResponse);
-}
+POST   /api/v1/risk/var
+POST   /api/v1/risk/sharpe
+POST   /api/v1/risk/monte-carlo
 
-service OptimizationService {
-  rpc OptimizePortfolio(PortfolioRequest) returns (PortfolioResponse);
-}
+POST   /api/v1/optimization/mean-variance
+POST   /api/v1/optimization/efficient-frontier
 ```
 
-**Performance Targets:**
-- 1M MA calculations: <100ms
-- VaR (10k simulations): <500ms
+**Why Python First:**
+- ✅ Leverage existing calculation code from current stock-picker
+- ✅ Faster time to market (no rewrite needed)
+- ✅ pandas/numpy are "fast enough" for most use cases
+- ✅ Can optimize to Rust later if bottlenecks identified
 
 ---
 
@@ -641,18 +658,21 @@ service OptimizationService {
 
 ---
 
-### Phase 4: Build Calculation Service (Week 6)
+### Phase 4: Build Calculation API (Week 6)
 
 **Tasks:**
-1. Initialize Rust project
-2. Implement indicators (MA, RSI, MACD, etc.)
-3. Implement risk analytics (VaR, Sharpe, etc.)
-4. Set up gRPC server
-5. Write benchmarks
+1. Create `services/calculation-api/` structure
+2. Extract existing calculation logic from backtest engine
+3. Implement indicator endpoints (MA, RSI, MACD, etc.)
+4. Implement risk analytics endpoints (VaR, Sharpe, etc.)
+5. Add Redis caching for computed results
+6. Write tests and benchmarks
+7. Create Dockerfile
 
 **Deliverables:**
-- ✅ Calculation service (Rust + gRPC)
-- ✅ Performance benchmarks
+- ✅ Calculation API service (Python + pandas/numpy)
+- ✅ REST API endpoints
+- ✅ Performance benchmarks (baseline for future Rust comparison)
 
 ---
 
@@ -799,26 +819,51 @@ const { data } = await tradingApi.GET('/api/v1/stocks/{code}', {
 
 ## Timeline & Milestones
 
+### Core Platform (8-9 Weeks)
+
 | Phase | Duration | Deliverable |
 |-------|----------|-------------|
 | 1. Monorepo Setup | Week 1-2 | Structure + CI/CD |
 | 2. Backend Services | Week 3-4 | Trading + Backtest APIs |
 | 3. Auth + Notifications | Week 5 | Auth + Notification APIs |
-| 4. Calculation Service | Week 6 | Rust gRPC service |
+| 4. Calculation API | Week 6 | Python calculation service |
 | 5. QuestDB Migration | Week 7 | Time-series database |
 | 6. Shared Packages | Week 8 | TypeScript packages |
 | 7. Web Application | Week 9 | Next.js app |
-| 8. Mobile Application | Week 10 | React Native app |
+| 8. Mobile Application | Week 10 | React Native app (optional) |
 | 9. Infrastructure | Week 11-12 | K8s deployment |
 
 **Major Milestones:**
 - **M1 (Week 2)**: Monorepo operational
 - **M2 (Week 4)**: All backend APIs running
-- **M3 (Week 6)**: Calculation service integrated
+- **M3 (Week 6)**: Calculation API integrated (Python)
 - **M4 (Week 8)**: Type-safe API clients ready
 - **M5 (Week 9)**: Web app deployed
-- **M6 (Week 10)**: Mobile app published
-- **M7 (Week 12)**: Production ready
+- **M6 (Week 12)**: Production ready with Python stack
+
+---
+
+### Optional: Performance Optimization Phase (2-4 Weeks)
+
+**When to do this:** After production launch, when profiling identifies bottlenecks
+
+| Phase | Duration | Deliverable |
+|-------|----------|-------------|
+| 11. Rust Calculation Service | Week 1-2 | Rust service with gRPC |
+| 12. Gradual Migration | Week 3-4 | Replace hot paths incrementally |
+
+**Rust Migration Approach:**
+1. Profile Python calculation API in production
+2. Identify bottlenecks (e.g., Monte Carlo with 100k simulations)
+3. Implement hot paths in Rust (use Polars for DataFrames)
+4. Deploy Rust service alongside Python
+5. Gradually route traffic to Rust for specific endpoints
+6. Keep Python as fallback
+
+**Expected Performance Gains:**
+- 10-100x faster for CPU-intensive calculations
+- Lower memory usage with Rust
+- Better concurrency with async Rust (Tokio)
 
 ---
 
@@ -826,16 +871,17 @@ const { data } = await tradingApi.GET('/api/v1/stocks/{code}', {
 
 | Layer | Technology | Justification |
 |-------|-----------|---------------|
-| **Backend APIs** | Python 3.13 + FastAPI | Consistency, OpenAPI codegen |
-| **Calculations** | Rust + gRPC | Performance, safety |
-| **Relational DB** | PostgreSQL 16 | Battle-tested |
-| **Time-Series DB** | QuestDB | 10x faster for finance |
-| **Cache** | Redis 7 | Industry standard |
-| **Web Frontend** | Next.js 14 + React | SSR/SSG, SEO |
-| **Mobile** | React Native + Expo | Code reuse |
-| **Desktop** | Electron + RN Web | Reuse web app |
-| **Type Safety** | OpenAPI → TS | Automatic sync |
-| **Monorepo** | PNPM + Turborepo | Fast builds |
+| **Backend APIs** | Python 3.13 + FastAPI | Consistency, OpenAPI codegen, team expertise |
+| **Calculations (Phase 1)** | Python + pandas/numpy | Faster to market, leverage existing code |
+| **Calculations (Phase 2)** | Rust + Polars (optional) | 10-100x speedup when needed |
+| **Relational DB** | PostgreSQL 16 | Battle-tested, ACID compliance |
+| **Time-Series DB** | QuestDB | 10x faster ingestion, built for finance |
+| **Cache** | Redis 7 | Industry standard, fast |
+| **Web Frontend** | Next.js 14 + React | SSR/SSG, SEO, production-ready |
+| **Mobile** | React Native + Expo | Code reuse, OTA updates |
+| **Desktop** | Electron + RN Web | Reuse web app, minimal effort |
+| **Type Safety** | OpenAPI → TS codegen | Automatic sync, zero manual typing |
+| **Monorepo** | PNPM + Turborepo | Fast builds, efficient workspace |
 
 ---
 
