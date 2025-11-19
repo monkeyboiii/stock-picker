@@ -2,6 +2,7 @@
 const nextConfig = {
   transpilePackages: ['@repo/api', '@repo/auth', '@repo/ui'],
   reactStrictMode: true,
+  output: 'standalone', // Enable for Docker deployment
   env: {
     NEXT_PUBLIC_TRADING_API_URL: process.env.NEXT_PUBLIC_TRADING_API_URL || 'http://localhost:8000',
     NEXT_PUBLIC_BACKTEST_API_URL: process.env.NEXT_PUBLIC_BACKTEST_API_URL || 'http://localhost:8001',

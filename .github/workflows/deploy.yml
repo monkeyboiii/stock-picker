@@ -1,0 +1,56 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+
+jobs:
+  deploy:
+    name: Deploy to ${{ github.event.inputs.environment || 'development' }}
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'development' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker images
+        run: |
+          # Build all service images
+          docker-compose -f infrastructure/docker/docker-compose.prod.yml build
+
+          # Tag and push images
+          # docker push your-registry/stock-picker-trading-api:latest
+          # docker push your-registry/stock-picker-backtest-api:latest
+          # ... etc
+
+      # TODO: Add deployment to your infrastructure
+      # This could be:
+      # - SSH to your server and run docker-compose
+      # - Deploy to Kubernetes cluster
+      # - Deploy to cloud provider (AWS ECS, Google Cloud Run, etc.)
+
+      - name: Deploy notification
+        run: |
+          echo "Deployment to ${{ github.event.inputs.environment || 'development' }} complete!"
+          # TODO: Send notification to Slack/Discord/Email

@@ -1,0 +1,154 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: stock-picker-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-stockpicker}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-stock_picker}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-stockpicker}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - stock-picker-network
+
+  # Trading API Service
+  trading-api:
+    build:
+      context: ../services/trading-api
+      dockerfile: Dockerfile
+    container_name: stock-picker-trading-api
+    environment:
+      POSTGRES_USERNAME: ${POSTGRES_USER:-stockpicker}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DATABASE: ${POSTGRES_DB:-stock_picker}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - stock-picker-network
+
+  # Backtest API Service
+  backtest-api:
+    build:
+      context: ../services/backtest-api
+      dockerfile: Dockerfile
+    container_name: stock-picker-backtest-api
+    environment:
+      POSTGRES_USERNAME: ${POSTGRES_USER:-stockpicker}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DATABASE: ${POSTGRES_DB:-stock_picker}
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - stock-picker-network
+
+  # Auth API Service
+  auth-api:
+    build:
+      context: ../services/auth-api
+      dockerfile: Dockerfile
+    container_name: stock-picker-auth-api
+    environment:
+      POSTGRES_USERNAME: ${POSTGRES_USER:-stockpicker}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DATABASE: ${POSTGRES_DB:-stock_picker}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-30}
+    ports:
+      - "8003:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - stock-picker-network
+
+  # Notification API Service
+  notification-api:
+    build:
+      context: ../services/notification-api
+      dockerfile: Dockerfile
+    container_name: stock-picker-notification-api
+    environment:
+      POSTGRES_USERNAME: ${POSTGRES_USER:-stockpicker}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DATABASE: ${POSTGRES_DB:-stock_picker}
+    ports:
+      - "8004:8004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - stock-picker-network
+
+  # Calculation API Service
+  calculation-api:
+    build:
+      context: ../services/calculation-api
+      dockerfile: Dockerfile
+    container_name: stock-picker-calculation-api
+    ports:
+      - "8005:8005"
+    restart: unless-stopped
+    networks:
+      - stock-picker-network
+
+  # Web Application (Next.js)
+  web:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/Dockerfile.web
+      args:
+        NEXT_PUBLIC_TRADING_API_URL: ${NEXT_PUBLIC_TRADING_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_BACKTEST_API_URL: ${NEXT_PUBLIC_BACKTEST_API_URL:-http://localhost:8001}
+        NEXT_PUBLIC_AUTH_API_URL: ${NEXT_PUBLIC_AUTH_API_URL:-http://localhost:8003}
+        NEXT_PUBLIC_NOTIFICATION_API_URL: ${NEXT_PUBLIC_NOTIFICATION_API_URL:-http://localhost:8004}
+        NEXT_PUBLIC_CALCULATION_API_URL: ${NEXT_PUBLIC_CALCULATION_API_URL:-http://localhost:8005}
+    container_name: stock-picker-web
+    ports:
+      - "3000:3000"
+    depends_on:
+      - trading-api
+      - backtest-api
+      - auth-api
+      - notification-api
+      - calculation-api
+    restart: unless-stopped
+    networks:
+      - stock-picker-network
+
+networks:
+  stock-picker-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
