@@ -7,6 +7,7 @@ This service provides REST endpoints for:
 - Portfolio optimization (mean-variance, efficient frontier)
 """
 
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -45,13 +46,20 @@ app = FastAPI(
     openapi_url="/openapi.json",
 )
 
-# CORS middleware
+# CORS middleware - Security: Whitelist specific origins only
+# Get allowed origins from environment variable (comma-separated)
+allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000")
+allowed_origins = [origin.strip() for origin in allowed_origins_str.split(",")]
+
+logger.info(f"CORS allowed origins: {allowed_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=allowed_origins,  # Whitelist only trusted origins
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],  # Explicit methods only
+    allow_headers=["Content-Type", "Authorization"],  # Explicit headers only
+    max_age=600,  # Cache preflight requests for 10 minutes
 )
 
 # Include routers

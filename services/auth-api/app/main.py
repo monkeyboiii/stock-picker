@@ -13,7 +13,8 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Response, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from loguru import logger
 from pydantic import BaseModel
@@ -39,8 +40,25 @@ from app.security import (
     verify_token,
 )
 
-# Database configuration (should be in environment variables)
-DATABASE_URL = "postgresql://user:password@localhost:5432/auth_db"  # TODO: Move to env
+# Database configuration - MUST be set via environment variables
+import os
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    # Construct from individual components if DATABASE_URL not provided
+    db_user = os.getenv("POSTGRES_USERNAME")
+    db_pass = os.getenv("POSTGRES_PASSWORD")
+    db_host = os.getenv("POSTGRES_HOST", "localhost")
+    db_port = os.getenv("POSTGRES_PORT", "5432")
+    db_name = os.getenv("POSTGRES_DATABASE", "auth_db")
+
+    if not db_user or not db_pass:
+        raise ValueError(
+            "Database credentials required. Set either DATABASE_URL or "
+            "POSTGRES_USERNAME and POSTGRES_PASSWORD environment variables."
+        )
+
+    DATABASE_URL = f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}"
 
 engine = create_engine(DATABASE_URL, echo=False)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -75,6 +93,22 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
+)
+
+# CORS middleware - Security: Whitelist specific origins only
+# Get allowed origins from environment variable (comma-separated)
+allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000")
+allowed_origins = [origin.strip() for origin in allowed_origins_str.split(",")]
+
+logger.info(f"CORS allowed origins: {allowed_origins}")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,  # Whitelist only trusted origins
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],  # Explicit methods only
+    allow_headers=["Content-Type", "Authorization"],  # Explicit headers only
+    max_age=600,  # Cache preflight requests for 10 minutes
 )
 
 
@@ -196,11 +230,15 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
 
 @app.post("/login", response_model=TokenResponse)
-async def login(credentials: UserLogin, db: Session = Depends(get_db)):
+async def login(
+    credentials: UserLogin,
+    response: Response,
+    db: Session = Depends(get_db)
+):
     """
     Login with email and password
 
-    Returns JWT access token and refresh token
+    Returns user info and sets httpOnly cookies for tokens (SECURITY: Prevents XSS token theft)
 
     - **email**: User's email address
     - **password**: User's password
@@ -246,8 +284,31 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
     db.add(session)
     db.commit()
 
-    logger.info(f"User logged in: {user.email}")
+    # SECURITY: Set tokens in httpOnly cookies (prevents XSS attacks)
+    # Access token cookie - short-lived (30 minutes)
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,  # Cannot be accessed by JavaScript
+        secure=True,    # Only sent over HTTPS (set to False for local dev)
+        samesite="lax", # CSRF protection
+        max_age=1800,   # 30 minutes (matches ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
 
+    # Refresh token cookie - long-lived (7 days)
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,  # Cannot be accessed by JavaScript
+        secure=True,    # Only sent over HTTPS (set to False for local dev)
+        samesite="lax", # CSRF protection
+        max_age=604800, # 7 days (matches REFRESH_TOKEN_EXPIRE_DAYS)
+    )
+
+    logger.info(f"User logged in: {user.email} (tokens set in httpOnly cookies)")
+
+    # Still return tokens in response body for backwards compatibility
+    # Frontend should migrate to cookie-based auth
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
@@ -317,11 +378,12 @@ async def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_
 @app.post("/logout")
 async def logout(
     request: RefreshTokenRequest,
+    response: Response,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
-    Logout user by invalidating refresh token
+    Logout user by invalidating refresh token and clearing cookies
 
     - **refresh_token**: Refresh token to invalidate
     """
@@ -339,6 +401,10 @@ async def logout(
         db.delete(session)
         db.commit()
         logger.info(f"User logged out: {current_user.email}")
+
+    # SECURITY: Clear httpOnly cookies
+    response.delete_cookie(key="access_token")
+    response.delete_cookie(key="refresh_token")
 
     return {"message": "Successfully logged out"}
 

@@ -2,7 +2,14 @@ from datetime import date
 from decimal import Decimal
 
 import akshare as ak  # type: ignore
+from loguru import logger
 from pandas import DataFrame, notna
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from app.constant.collection import CollectionType
 from app.constant.exchange import (
@@ -12,6 +19,16 @@ from app.constant.exchange import (
     SEX_SHANGHAI,
     SEX_SHENZHEN,
 )
+
+# Retry configuration for external API calls
+# Retry on common network errors with exponential backoff
+# Max 4 attempts: 2s, 4s, 8s (total ~14s max wait)
+RETRY_CONFIG = {
+    "retry": retry_if_exception_type((ConnectionError, TimeoutError, Exception)),
+    "stop": stop_after_attempt(4),
+    "wait": wait_exponential(multiplier=1, min=2, max=10),
+    "reraise": True,
+}
 
 
 market_map = {
@@ -23,63 +40,101 @@ market_map = {
 }
 
 
+@retry(**RETRY_CONFIG)
 def pull_stocks(exchange: str) -> DataFrame:
     '''
     Pulls basic stocks info for a given market.
+
+    RESILIENCE: Retries up to 4 times with exponential backoff on API failures.
     '''
 
     if exchange not in market_map.keys():
         raise ValueError(f"exchange {exchange} not supported")
 
+    logger.debug(f"Fetching stocks for exchange: {exchange}")
+
     column_mapping = {
         '代码': 'code',
         '名称': 'name',
     }
-    df = market_map[exchange]()
+
+    try:
+        df = market_map[exchange]()
+    except Exception as e:
+        logger.error(f"Error fetching stocks from AKShare for {exchange}: {e}")
+        raise
+
     df = df.rename(columns=column_mapping)[list(column_mapping.values())]
+    logger.debug(f"Fetched {len(df)} stocks for exchange: {exchange}")
 
     return df
 
 
+@retry(**RETRY_CONFIG)
 def pull_collections(cType: CollectionType) -> DataFrame:
+    '''
+    RESILIENCE: Retries up to 4 times with exponential backoff on API failures.
+    '''
+    logger.debug(f"Fetching collections for type: {cType}")
+
     column_mapping = {
         '板块名称': 'name',
         '板块代码': 'code',
     }
 
-    match cType:
-        case CollectionType.INDUSTRY_BOARD:
-            df = ak.stock_board_industry_name_em()
+    try:
+        match cType:
+            case CollectionType.INDUSTRY_BOARD:
+                df = ak.stock_board_industry_name_em()
 
-        case _:
-            raise Exception("Not implemented yet!")
+            case _:
+                raise Exception("Not implemented yet!")
+    except Exception as e:
+        logger.error(f"Error fetching collections from AKShare for {cType}: {e}")
+        raise
 
+    logger.debug(f"Fetched {len(df)} collections for type: {cType}")
     return df.rename(columns=column_mapping)[list(column_mapping.values())]
 
 
+@retry(**RETRY_CONFIG)
 def pull_stocks_in_collection(cType: CollectionType, symbol: str) -> DataFrame:
+    '''
+    RESILIENCE: Retries up to 4 times with exponential backoff on API failures.
+    '''
+    logger.debug(f"Fetching stocks in collection: {symbol} (type: {cType})")
+
     column_mapping = {
         '代码': 'code',
         '名称': 'name',
     }
 
-    match cType:
-        case CollectionType.INDUSTRY_BOARD:
-            df = ak.stock_board_industry_cons_em(symbol=symbol)
+    try:
+        match cType:
+            case CollectionType.INDUSTRY_BOARD:
+                df = ak.stock_board_industry_cons_em(symbol=symbol)
 
-        case _:
-            raise Exception("Not implemented yet!")
+            case _:
+                raise Exception("Not implemented yet!")
+    except Exception as e:
+        logger.error(f"Error fetching stocks in collection {symbol} from AKShare: {e}")
+        raise
 
+    logger.debug(f"Fetched {len(df)} stocks in collection: {symbol}")
     return df.rename(columns=column_mapping)[list(column_mapping.values())]
 
 
+@retry(**RETRY_CONFIG)
 def pull_stock_daily() -> DataFrame:
     '''
     Ensures stocks are eligible for insertion.
 
     Ineligible:
         1. stock with no close or trade volume
+
+    RESILIENCE: Retries up to 4 times with exponential backoff on API failures.
     '''
+    logger.debug("Fetching daily stock data from AKShare")
 
     column_mapping = {
         '代码': 'code',
@@ -107,22 +162,32 @@ def pull_stock_daily() -> DataFrame:
         'turnover_rate':            lambda x: round(x, 3) if notna(x) else x,
     }
 
-    df = ak.stock_zh_a_spot_em()
+    try:
+        df = ak.stock_zh_a_spot_em()
+    except Exception as e:
+        logger.error(f"Error fetching daily stock data from AKShare: {e}")
+        raise
+
     df = df.rename(columns=column_mapping)[list(column_mapping.values())]
     df = df[df['close'].notna() & df['volume'].notna()]
     for col, func in transformations.items():
         df[col] = df[col].apply(func)
 
+    logger.debug(f"Fetched {len(df)} stocks daily data")
     return df
 
 
+@retry(**RETRY_CONFIG)
 def pull_stock_daily_hist(symbol: str, start_date: date, end_date: date, adjust: str = 'qfq') -> DataFrame:
     '''
     Ensures stocks are eligible for insertion.
 
     Ineligible:
         1. stock with no close or trade volume
+
+    RESILIENCE: Retries up to 4 times with exponential backoff on API failures.
     '''
+    logger.debug(f"Fetching historical data for {symbol} from {start_date} to {end_date}")
 
     column_mapping = {
         '日期': 'trade_day',
@@ -142,15 +207,20 @@ def pull_stock_daily_hist(symbol: str, start_date: date, end_date: date, adjust:
         'turnover':                 lambda x: round(x) if notna(x) else x,
     }
 
-    df = ak.stock_zh_a_hist(
-        symbol=symbol,
-        period="daily",
-        start_date=start_date.strftime('%Y%m%d'),
-        end_date=end_date.strftime('%Y%m%d'),
-        adjust=adjust,
-    )
+    try:
+        df = ak.stock_zh_a_hist(
+            symbol=symbol,
+            period="daily",
+            start_date=start_date.strftime('%Y%m%d'),
+            end_date=end_date.strftime('%Y%m%d'),
+            adjust=adjust,
+        )
+    except Exception as e:
+        logger.error(f"Error fetching historical data for {symbol} from AKShare: {e}")
+        raise
 
     if len(df) == 0:
+        logger.debug(f"No data returned for {symbol}")
         return DataFrame(index=range(0), columns=list(column_mapping.values()))
 
     df = df.rename(columns=column_mapping)[list(column_mapping.values())]
@@ -158,10 +228,17 @@ def pull_stock_daily_hist(symbol: str, start_date: date, end_date: date, adjust:
     for col, func in transformations.items():
         df[col] = df[col].apply(func)
 
+    logger.debug(f"Fetched {len(df)} records for {symbol}")
     return df
 
 
+@retry(**RETRY_CONFIG)
 def pull_collection_daily(cType: CollectionType) -> DataFrame:
+    '''
+    RESILIENCE: Retries up to 4 times with exponential backoff on API failures.
+    '''
+    logger.debug(f"Fetching collection daily data for type: {cType}")
+
     column_mapping = {
         # '排名': 'rank', # TODO maybe useful in deciding hot
         '板块代码': 'code',
@@ -184,18 +261,23 @@ def pull_collection_daily(cType: CollectionType) -> DataFrame:
         'top_gain':                 lambda x: round(x, 3) if notna(x) else x,
     }
 
-    match cType:
-        case CollectionType.INDUSTRY_BOARD:
-            df = ak.stock_board_industry_name_em()
+    try:
+        match cType:
+            case CollectionType.INDUSTRY_BOARD:
+                df = ak.stock_board_industry_name_em()
 
-        case _:
-            raise Exception("Not implemented yet!")
+            case _:
+                raise Exception("Not implemented yet!")
+    except Exception as e:
+        logger.error(f"Error fetching collection daily data from AKShare for {cType}: {e}")
+        raise
 
     df = df.rename(columns=column_mapping)[list(column_mapping.values())]
     df = df.dropna()
     for col, func in transformations.items():
         df[col] = df[col].apply(func)
 
+    logger.debug(f"Fetched {len(df)} collection daily records for type: {cType}")
     return df
 
 

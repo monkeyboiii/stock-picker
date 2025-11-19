@@ -114,9 +114,9 @@ admin > analyst > user
 cd services/auth-api
 uv sync
 
-# Set environment variables
-export DATABASE_URL="postgresql://user:password@localhost:5432/auth_db"
-export SECRET_KEY="your-secret-key-here"
+# Set environment variables (use strong values in production!)
+export DATABASE_URL="postgresql://your_user:your_password@localhost:5432/auth_db"
+export JWT_SECRET="$(openssl rand -base64 64)"  # Generate a secure secret
 
 # Run the service
 uv run uvicorn app.main:app --reload --port 8003
@@ -140,8 +140,8 @@ docker build -t auth-api:latest .
 
 # Run container
 docker run -p 8003:8003 \
-  -e DATABASE_URL=postgresql://user:password@db:5432/auth_db \
-  -e SECRET_KEY=your-secret-key \
+  -e DATABASE_URL=postgresql://your_user:your_password@db:5432/auth_db \
+  -e JWT_SECRET="$(openssl rand -base64 64)" \
   auth-api:latest
 ```
 

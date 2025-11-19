@@ -1,5 +1,6 @@
 """JWT token generation and verification utilities"""
 
+import os
 import secrets
 from datetime import datetime, timedelta
 from typing import Optional
@@ -7,11 +8,17 @@ from typing import Optional
 from jose import JWTError, jwt
 from pydantic import BaseModel
 
-# JWT configuration (should be in environment variables in production)
-SECRET_KEY = "your-secret-key-change-this-in-production"  # TODO: Move to env
+# JWT configuration - MUST be set via environment variables
+SECRET_KEY = os.getenv("JWT_SECRET")
+if not SECRET_KEY:
+    raise ValueError(
+        "JWT_SECRET environment variable is required. "
+        "Generate a secure secret with: openssl rand -base64 64"
+    )
+
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-REFRESH_TOKEN_EXPIRE_DAYS = 7
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 
 
 class TokenData(BaseModel):

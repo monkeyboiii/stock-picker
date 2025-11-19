@@ -24,9 +24,19 @@ metadata:
   name: postgres-secret
   namespace: stock-picker
 type: Opaque
+# SECURITY: DO NOT commit actual secrets to git!
+# Create this secret manually or use a secrets manager (Vault, Sealed Secrets, External Secrets Operator)
+#
+# Example creation command:
+#   kubectl create secret generic postgres-secret \
+#     --namespace=stock-picker \
+#     --from-literal=POSTGRES_USER=stockpicker \
+#     --from-literal=POSTGRES_PASSWORD=$(openssl rand -base64 32)
+#
+# For now, placeholder values (MUST be replaced before deployment):
 stringData:
-  POSTGRES_USER: stockpicker
-  POSTGRES_PASSWORD: changeme  # Change this in production!
+  POSTGRES_USER: REPLACE_ME
+  POSTGRES_PASSWORD: REPLACE_ME
 ---
 apiVersion: apps/v1
 kind: Deployment

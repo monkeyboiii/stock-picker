@@ -31,6 +31,7 @@ dependencies = [
     "gspread==6.1.4",
     "gspread-formatting==1.2.0",
     "pandas>=2.0.0",  # Required by akshare but not explicitly listed
+    "tenacity==9.0.0",  # Retry logic with exponential backoff for external APIs
 ]
 
 [project.optional-dependencies]
