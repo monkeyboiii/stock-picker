@@ -46,7 +46,7 @@
     "codegen": "node scripts/codegen.js"
   },
   "dependencies": {
-    "openapi-fetch": "^0.12.6",
+    "openapi-fetch": "^0.15.0",
     "openapi-typescript-helpers": "^0.0.15"
   },
   "devDependencies": {
