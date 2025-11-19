@@ -240,24 +240,69 @@ async def login(
 
     Returns user info and sets httpOnly cookies for tokens (SECURITY: Prevents XSS token theft)
 
+    Account lockout policy:
+    - Maximum 5 failed attempts before 30-minute lockout
+    - Lockout duration: 30 minutes
+    - Failed attempts reset on successful login
+
     - **email**: User's email address
     - **password**: User's password
     """
     # Find user by email
     user = db.query(User).filter(User.email == credentials.email).first()
 
-    if not user or not verify_password(credentials.password, user.hashed_password):
+    # Check if user exists first (avoid timing attacks by checking this separately)
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # Get lockout configuration from environment
+    max_attempts = int(os.getenv("MAX_LOGIN_ATTEMPTS", "5"))
+    lockout_minutes = int(os.getenv("LOCKOUT_DURATION_MINUTES", "30"))
+
+    # SECURITY: Check if account is locked
+    if user.is_locked():
+        lockout_remaining = (user.locked_until - datetime.utcnow()).total_seconds() / 60
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Account locked due to multiple failed login attempts. Try again in {int(lockout_remaining)} minutes.",
+        )
+
+    # Verify password
+    if not verify_password(credentials.password, user.hashed_password):
+        # SECURITY: Record failed login attempt
+        user.record_failed_login(max_attempts=max_attempts, lockout_duration_minutes=lockout_minutes)
+        db.commit()
+
+        remaining_attempts = max(0, max_attempts - user.failed_login_attempts)
+        if remaining_attempts > 0:
+            detail = f"Incorrect email or password. {remaining_attempts} attempts remaining."
+        else:
+            detail = f"Account locked due to multiple failed login attempts. Try again in {lockout_minutes} minutes."
+
+        logger.warning(
+            f"Failed login attempt for {user.email}. "
+            f"Attempts: {user.failed_login_attempts}/{max_attempts}"
+        )
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=detail,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Check if account is active
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is inactive",
         )
+
+    # SECURITY: Reset failed login attempts on successful login
+    user.reset_failed_attempts()
 
     # Update last login
     user.last_login = datetime.utcnow()
