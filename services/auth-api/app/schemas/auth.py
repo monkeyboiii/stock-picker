@@ -29,7 +29,8 @@ def check_password_pwned(password: str) -> bool:
     """
     try:
         # SHA-1 hash of the password (uppercase)
-        sha1_hash = hashlib.sha1(password.encode('utf-8')).hexdigest().upper()
+        # NOTE: SHA1 is required by HaveIBeenPwned API (not used for cryptographic security)
+        sha1_hash = hashlib.sha1(password.encode('utf-8'), usedforsecurity=False).hexdigest().upper()  # nosec B324
         prefix, suffix = sha1_hash[:5], sha1_hash[5:]
 
         # Query HaveIBeenPwned API with k-anonymity (only first 5 chars)
