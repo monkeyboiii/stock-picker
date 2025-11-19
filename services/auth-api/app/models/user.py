@@ -59,16 +59,32 @@ class User(Base):
         """
         Record a failed login attempt and lock account if threshold exceeded.
 
+        Implements exponential backoff for repeated lockouts:
+        - 1st lockout (5 attempts): 30 min
+        - 2nd lockout (10 attempts): 1 hour
+        - 3rd lockout (15 attempts): 2 hours
+        - 4th lockout (20 attempts): 4 hours
+        - 5th+ lockout (25+ attempts): 8 hours (max 24 hours)
+
         Args:
             max_attempts: Maximum failed attempts before lockout (default: 5)
-            lockout_duration_minutes: How long to lock account in minutes (default: 30)
+            lockout_duration_minutes: Base lockout duration in minutes (default: 30)
         """
         self.failed_login_attempts += 1
         self.last_failed_login = datetime.utcnow()
 
         if self.failed_login_attempts >= max_attempts:
             from datetime import timedelta
-            self.locked_until = datetime.utcnow() + timedelta(minutes=lockout_duration_minutes)
+
+            # Calculate exponential backoff based on how many times locked out
+            # lockout_count = 0 for first lockout (5 attempts), 1 for second (10 attempts), etc.
+            lockout_count = (self.failed_login_attempts - max_attempts) // max_attempts
+
+            # Exponential backoff: 30min, 1hr, 2hr, 4hr, 8hr (max 24hr)
+            backoff_multiplier = 2 ** lockout_count
+            backoff_minutes = min(lockout_duration_minutes * backoff_multiplier, 1440)  # Cap at 24 hours
+
+            self.locked_until = datetime.utcnow() + timedelta(minutes=backoff_minutes)
 
     def reset_failed_attempts(self) -> None:
         """Reset failed login attempts and unlock account"""

@@ -1,9 +1,62 @@
 """Pydantic schemas for authentication endpoints"""
 
+import hashlib
 import re
 from typing import Optional
 
+import requests
+from loguru import logger
 from pydantic import BaseModel, EmailStr, Field, field_validator
+
+
+def check_password_pwned(password: str) -> bool:
+    """
+    Check if password appears in HaveIBeenPwned database using k-anonymity.
+
+    Uses the HaveIBeenPwned Passwords API v3 with k-anonymity:
+    - Only sends first 5 characters of SHA-1 hash
+    - Receives all hashes matching that prefix
+    - Checks locally if full hash is in the list
+
+    API: https://haveibeenpwned.com/API/v3#PwnedPasswords
+
+    Args:
+        password: Password to check
+
+    Returns:
+        True if password found in breach database, False otherwise
+        False if API is unavailable (fail open for availability)
+    """
+    try:
+        # SHA-1 hash of the password (uppercase)
+        sha1_hash = hashlib.sha1(password.encode('utf-8')).hexdigest().upper()
+        prefix, suffix = sha1_hash[:5], sha1_hash[5:]
+
+        # Query HaveIBeenPwned API with k-anonymity (only first 5 chars)
+        url = f"https://api.pwnedpasswords.com/range/{prefix}"
+        response = requests.get(url, timeout=3)
+
+        if response.status_code == 200:
+            # Check if our suffix appears in the response
+            for line in response.text.splitlines():
+                hash_suffix, count = line.split(':')
+                if hash_suffix == suffix:
+                    logger.warning(f"Password found in HaveIBeenPwned database (seen {count} times)")
+                    return True  # Password found in breach
+        elif response.status_code == 429:
+            # Rate limited - log but don't block (fail open)
+            logger.warning("HaveIBeenPwned API rate limited, skipping breach check")
+        else:
+            logger.warning(f"HaveIBeenPwned API returned {response.status_code}, skipping breach check")
+
+    except requests.RequestException as e:
+        # Network error - log but don't block registration (fail open)
+        logger.warning(f"HaveIBeenPwned API unavailable: {e}, skipping breach check")
+    except Exception as e:
+        # Unexpected error - log but don't block
+        logger.error(f"Unexpected error checking HaveIBeenPwned: {e}")
+
+    return False  # Not found or API unavailable
 
 
 def validate_password_complexity(password: str) -> str:
@@ -51,6 +104,13 @@ def validate_password_complexity(password: str) -> str:
     }
     if password.lower() in weak_passwords:
         raise ValueError("Password is too common. Please choose a stronger password")
+
+    # SECURITY: Check if password appears in HaveIBeenPwned breach database
+    if check_password_pwned(password):
+        raise ValueError(
+            "This password has been exposed in a data breach and cannot be used. "
+            "Please choose a different password"
+        )
 
     return password
 

@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from loguru import logger
@@ -110,6 +110,15 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization"],  # Explicit headers only
     max_age=600,  # Cache preflight requests for 10 minutes
 )
+
+# Cookie security configuration
+# SECURITY: Make cookie secure flag configurable for development vs production
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+IS_PRODUCTION = os.getenv("ENVIRONMENT", "development").lower() == "production"
+# Auto-enable secure cookies in production, or when explicitly enabled
+SECURE_COOKIES = COOKIE_SECURE or IS_PRODUCTION
+
+logger.info(f"Cookie security: secure={SECURE_COOKIES}, environment={os.getenv('ENVIRONMENT', 'development')}")
 
 
 # Dependency to get database session
@@ -233,6 +242,7 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
 async def login(
     credentials: UserLogin,
     response: Response,
+    request: Request,
     db: Session = Depends(get_db)
 ):
     """
@@ -242,55 +252,96 @@ async def login(
 
     Account lockout policy:
     - Maximum 5 failed attempts before 30-minute lockout
-    - Lockout duration: 30 minutes
+    - Lockout duration: 30 minutes (configurable)
     - Failed attempts reset on successful login
+
+    SECURITY FEATURES:
+    - Constant-time user lookup (prevents timing attacks)
+    - Generic error messages (prevents user enumeration)
+    - IP-based logging for security monitoring
 
     - **email**: User's email address
     - **password**: User's password
     """
+    # SECURITY: Generic error message for all authentication failures
+    GENERIC_AUTH_ERROR = "Invalid credentials"
+
+    # SECURITY: Dummy password hash for constant-time verification when user doesn't exist
+    # This maintains consistent timing by always performing bcrypt verification
+    DUMMY_PASSWORD_HASH = "$2b$12$LgKz1DfZzPm9X8p9w8e.N.DummyHashForTimingConsistencyDoNotUse"
+
+    # Get lockout configuration from environment (with bounds checking)
+    max_attempts = max(1, min(int(os.getenv("MAX_LOGIN_ATTEMPTS", "5")), 10))  # 1-10
+    lockout_minutes = max(1, min(int(os.getenv("LOCKOUT_DURATION_MINUTES", "30")), 1440))  # 1-24hrs
+
+    # Get client IP for logging (handle proxy headers)
+    client_ip = request.client.host if request.client else "unknown"
+    if "x-forwarded-for" in request.headers:
+        client_ip = request.headers["x-forwarded-for"].split(",")[0].strip()
+
     # Find user by email
     user = db.query(User).filter(User.email == credentials.email).first()
 
-    # Check if user exists first (avoid timing attacks by checking this separately)
+    # SECURITY: Always perform password verification for constant-time response
     if not user:
+        # Verify against dummy hash to maintain consistent timing
+        verify_password(credentials.password, DUMMY_PASSWORD_HASH)
+
+        # Log failed attempt (non-existent user)
+        logger.warning(
+            f"Failed login attempt: email={credentials.email}, "
+            f"reason=user_not_found, ip={client_ip}"
+        )
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+            detail=GENERIC_AUTH_ERROR,
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Get lockout configuration from environment
-    max_attempts = int(os.getenv("MAX_LOGIN_ATTEMPTS", "5"))
-    lockout_minutes = int(os.getenv("LOCKOUT_DURATION_MINUTES", "30"))
+    # SECURITY: Verify password BEFORE checking lockout status (constant-time)
+    password_valid = verify_password(credentials.password, user.hashed_password)
 
-    # SECURITY: Check if account is locked
+    # SECURITY: Check if account is locked (check AFTER password verification)
     if user.is_locked():
+        # Record failed attempt if password was wrong
+        if not password_valid:
+            user.record_failed_login(max_attempts=max_attempts, lockout_duration_minutes=lockout_minutes)
+            db.commit()
+
+        # Log locked account login attempt with details
         lockout_remaining = (user.locked_until - datetime.utcnow()).total_seconds() / 60
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Account locked due to multiple failed login attempts. Try again in {int(lockout_remaining)} minutes.",
+        logger.warning(
+            f"Login attempt on locked account: email={user.email}, "
+            f"lockout_remaining={int(lockout_remaining)}min, "
+            f"password_valid={password_valid}, ip={client_ip}"
         )
 
-    # Verify password
-    if not verify_password(credentials.password, user.hashed_password):
+        # SECURITY: Return generic error (don't reveal lockout status)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=GENERIC_AUTH_ERROR,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Check password validity
+    if not password_valid:
         # SECURITY: Record failed login attempt
         user.record_failed_login(max_attempts=max_attempts, lockout_duration_minutes=lockout_minutes)
         db.commit()
 
-        remaining_attempts = max(0, max_attempts - user.failed_login_attempts)
-        if remaining_attempts > 0:
-            detail = f"Incorrect email or password. {remaining_attempts} attempts remaining."
-        else:
-            detail = f"Account locked due to multiple failed login attempts. Try again in {lockout_minutes} minutes."
-
+        # Log detailed information internally (not exposed to user)
         logger.warning(
-            f"Failed login attempt for {user.email}. "
-            f"Attempts: {user.failed_login_attempts}/{max_attempts}"
+            f"Failed login attempt: email={user.email}, "
+            f"reason=invalid_password, "
+            f"attempts={user.failed_login_attempts}/{max_attempts}, "
+            f"ip={client_ip}"
         )
 
+        # SECURITY: Generic error message (don't reveal remaining attempts)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=detail,
+            detail=GENERIC_AUTH_ERROR,
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -334,20 +385,20 @@ async def login(
     response.set_cookie(
         key="access_token",
         value=access_token,
-        httponly=True,  # Cannot be accessed by JavaScript
-        secure=True,    # Only sent over HTTPS (set to False for local dev)
-        samesite="lax", # CSRF protection
-        max_age=1800,   # 30 minutes (matches ACCESS_TOKEN_EXPIRE_MINUTES)
+        httponly=True,       # Cannot be accessed by JavaScript
+        secure=SECURE_COOKIES,  # HTTPS only (auto-detected: dev=False, prod=True)
+        samesite="lax",      # CSRF protection
+        max_age=1800,        # 30 minutes (matches ACCESS_TOKEN_EXPIRE_MINUTES)
     )
 
     # Refresh token cookie - long-lived (7 days)
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
-        httponly=True,  # Cannot be accessed by JavaScript
-        secure=True,    # Only sent over HTTPS (set to False for local dev)
-        samesite="lax", # CSRF protection
-        max_age=604800, # 7 days (matches REFRESH_TOKEN_EXPIRE_DAYS)
+        httponly=True,       # Cannot be accessed by JavaScript
+        secure=SECURE_COOKIES,  # HTTPS only (auto-detected: dev=False, prod=True)
+        samesite="lax",      # CSRF protection
+        max_age=604800,      # 7 days (matches REFRESH_TOKEN_EXPIRE_DAYS)
     )
 
     logger.info(f"User logged in: {user.email} (tokens set in httpOnly cookies)")
