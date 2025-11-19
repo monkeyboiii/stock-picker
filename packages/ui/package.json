@@ -13,9 +13,12 @@
     "clean": "rm -rf dist .turbo"
   },
   "devDependencies": {
+    "@eslint/js": "^9.18.0",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^22.10.5",
     "@types/react": "^18.3.18",
+    "@typescript-eslint/eslint-plugin": "^8.19.1",
+    "@typescript-eslint/parser": "^8.19.1",
     "eslint": "^9.18.0",
     "react": "^18.3.1",
     "tsup": "^8.3.7",
