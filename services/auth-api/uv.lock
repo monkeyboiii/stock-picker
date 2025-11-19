@@ -29,6 +29,7 @@ name = "auth-api"
 version = "1.0.0"
 source = { editable = "." }
 dependencies = [
+    { name = "cryptography" },
     { name = "fastapi" },
     { name = "loguru" },
     { name = "passlib", extra = ["bcrypt"] },
@@ -54,6 +55,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cryptography", specifier = ">=43.0.1" },
     { name = "fastapi", specifier = "==0.115.6" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27.0" },
     { name = "loguru", specifier = "==0.7.3" },

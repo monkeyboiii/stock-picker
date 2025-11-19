@@ -32,6 +32,7 @@ dependencies = [
     "gspread-formatting==1.2.0",
     "pandas>=2.0.0",  # Required by akshare but not explicitly listed
     "tenacity==9.0.0",  # Retry logic with exponential backoff for external APIs
+    "cryptography>=43.0.1",  # Security: Fix CVE-2024-26130, CVE-2023-50782, CVE-2024-0727
 ]
 
 [project.optional-dependencies]
