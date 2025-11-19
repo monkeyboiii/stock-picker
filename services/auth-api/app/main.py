@@ -268,7 +268,7 @@ async def login(
 
     # SECURITY: Dummy password hash for constant-time verification when user doesn't exist
     # This maintains consistent timing by always performing bcrypt verification
-    DUMMY_PASSWORD_HASH = "$2b$12$LgKz1DfZzPm9X8p9w8e.N.DummyHashForTimingConsistencyDoNotUse"
+    DUMMY_PASSWORD_HASH = "$2b$12$E5edpEhx3geomhU4lspI/eXOfL5pGyLxzgylPoEDg2zq1R7cb9ROy"
 
     # Get lockout configuration from environment (with bounds checking)
     max_attempts = max(1, min(int(os.getenv("MAX_LOGIN_ATTEMPTS", "5")), 10))  # 1-10

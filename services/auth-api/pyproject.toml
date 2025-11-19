@@ -24,6 +24,7 @@ dependencies = [
     "python-jose[cryptography]==3.3.0",
     "cryptography>=43.0.1",  # Security: Fix CVE-2024-26130, CVE-2023-50782, CVE-2024-0727
     "passlib[bcrypt]==1.7.4",
+    "bcrypt>=3.2.0,<4.0.0",  # Pin bcrypt <4.0 for passlib 1.7.4 compatibility
     "python-multipart==0.0.20",
 
     # Utilities
