@@ -10,7 +10,7 @@ import {
 import { createTradingClient } from '@repo/api/trading';
 import { colors } from '@repo/ui';
 
-const tradingClient = createTradingClient(
+const _tradingClient = createTradingClient(
   process.env.EXPO_PUBLIC_TRADING_API_URL || 'http://localhost:8000'
 );
 

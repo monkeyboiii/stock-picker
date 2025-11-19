@@ -14,7 +14,7 @@ import { useRouter, Link } from 'expo-router';
 import { createAuthClient } from '@repo/api/auth';
 import { colors } from '@repo/ui';
 
-const authClient = createAuthClient(
+const _authClient = createAuthClient(
   process.env.EXPO_PUBLIC_AUTH_API_URL || 'http://localhost:8003'
 );
 
@@ -44,7 +44,7 @@ export default function SignupScreen() {
 
     setLoading(true);
     try {
-      // TODO: Implement with authClient.POST('/api/v1/auth/register')
+      // TODO: Implement with _authClient.POST('/api/v1/auth/register')
       // For now, show success and redirect
       Alert.alert('Success', 'Account created successfully!', [
         {
@@ -52,7 +52,7 @@ export default function SignupScreen() {
           onPress: () => router.push('/auth/login'),
         },
       ]);
-    } catch (error) {
+    } catch (_error) {
       Alert.alert('Error', 'Registration failed. Please try again.');
     } finally {
       setLoading(false);

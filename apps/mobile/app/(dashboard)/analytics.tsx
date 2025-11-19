@@ -5,13 +5,12 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   Alert,
 } from 'react-native';
 import { createCalculationClient } from '@repo/api/calculation';
 import { colors } from '@repo/ui';
 
-const calculationClient = createCalculationClient(
+const _calculationClient = createCalculationClient(
   process.env.EXPO_PUBLIC_CALCULATION_API_URL || 'http://localhost:8005'
 );
 

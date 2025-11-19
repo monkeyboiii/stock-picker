@@ -1,9 +1,7 @@
-import js from '@eslint/js';
 import tsPlugin from '@typescript-eslint/eslint-plugin';
 import tsParser from '@typescript-eslint/parser';
 
 export default [
-  js.configs.recommended,
   {
     files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
@@ -18,6 +16,7 @@ export default [
       globals: {
         // React Native globals
         __DEV__: 'readonly',
+        alert: 'readonly',
         // Node.js globals
         process: 'readonly',
         module: 'readonly',
@@ -40,6 +39,7 @@ export default [
       ],
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-require-imports': 'off', // Allow require in React Native
+      'no-undef': 'off', // TypeScript handles this
     },
   },
   {
@@ -50,6 +50,7 @@ export default [
       'node_modules/**',
       '.turbo/**',
       'dist/**',
+      'babel.config.js', // Config file with CommonJS
     ],
   },
 ];

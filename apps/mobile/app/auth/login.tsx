@@ -15,7 +15,7 @@ import { createAuthClient } from '@repo/api/auth';
 import { tokenStorage } from '@repo/auth';
 import { colors } from '@repo/ui';
 
-const authClient = createAuthClient(
+const _authClient = createAuthClient(
   process.env.EXPO_PUBLIC_AUTH_API_URL || 'http://localhost:8003'
 );
 
@@ -33,11 +33,11 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      // TODO: Implement with authClient.POST('/api/v1/auth/login')
+      // TODO: Implement with _authClient.POST('/api/v1/auth/login')
       // For now, use placeholder
       await tokenStorage.setAccessToken('placeholder_access_token');
       router.replace('/(dashboard)');
-    } catch (error) {
+    } catch (_error) {
       Alert.alert('Error', 'Login failed. Please try again.');
     } finally {
       setLoading(false);

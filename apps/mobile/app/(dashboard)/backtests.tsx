@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native
 import { createBacktestClient } from '@repo/api/backtest';
 import { colors } from '@repo/ui';
 
-const backtestClient = createBacktestClient(
+const _backtestClient = createBacktestClient(
   process.env.EXPO_PUBLIC_BACKTEST_API_URL || 'http://localhost:8001'
 );
 
