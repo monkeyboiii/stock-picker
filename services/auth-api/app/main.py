@@ -20,6 +20,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from loguru import logger
 from pydantic import BaseModel
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -78,6 +81,15 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # HTTP Bearer security scheme
 security = HTTPBearer()
 
+# Rate limiting configuration
+# Configurable via environment variables
+# Defaults: login=5/minute, register=3/minute, health=100/minute
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=[],  # No default limits, apply per-endpoint
+    storage_uri=os.getenv("RATE_LIMIT_STORAGE", "memory://"),
+)
+
 
 class HealthResponse(BaseModel):
     """Health check response"""
@@ -122,6 +134,10 @@ app = FastAPI(
     redoc_url="/redoc",
     openapi_url="/openapi.json",
 )
+
+# Add rate limiter to app state
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS middleware - Security: Whitelist specific origins only
 # Get allowed origins from environment variable (comma-separated)
@@ -223,13 +239,15 @@ def get_current_user(
 
 
 @app.get("/", response_model=HealthResponse)
-async def root():
+@limiter.limit(os.getenv("RATE_LIMIT_HEALTH", "100/minute"))
+async def root(request: Request):
     """Health check endpoint"""
     return HealthResponse(status="healthy", version="1.0.0")
 
 
 @app.get("/health", response_model=HealthResponse)
-async def health():
+@limiter.limit(os.getenv("RATE_LIMIT_HEALTH", "100/minute"))
+async def health(request: Request):
     """Health check endpoint with database connectivity test"""
     try:
         from sqlalchemy import text
@@ -246,7 +264,8 @@ async def health():
 
 
 @app.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(user_data: UserCreate, db: Session = Depends(get_db)):
+@limiter.limit(os.getenv("RATE_LIMIT_REGISTER", "3/minute"))
+async def register(request: Request, user_data: UserCreate, db: Session = Depends(get_db)):
     """
     Register a new user
 
@@ -291,10 +310,11 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
 
 @app.post("/login", response_model=TokenResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_LOGIN", "5/minute"))
 async def login(
+    request: Request,
     credentials: UserLogin,
     response: Response,
-    request: Request,
     db: Session = Depends(get_db)
 ):
     """
