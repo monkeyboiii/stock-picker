@@ -19,6 +19,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from loguru import logger
+from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -169,6 +170,14 @@ app = FastAPI(
 # Add rate limiter to app state
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Prometheus metrics instrumentation
+# Automatically tracks:
+# - Request count, latency, response status codes
+# - In-progress requests
+# - Request/response sizes
+Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
+logger.info("Prometheus metrics enabled at /metrics")
 
 # CORS middleware - Security: Whitelist specific origins only
 # Get allowed origins from environment variable (comma-separated)

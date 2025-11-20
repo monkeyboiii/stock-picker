@@ -33,6 +33,7 @@ dependencies = [
     "requests>=2.31.0",  # HTTP requests for HaveIBeenPwned API
     "slowapi==0.1.9",  # Rate limiting for endpoints
     "tenacity==9.0.0",  # Retry logic with exponential backoff
+    "prometheus-fastapi-instrumentator==7.0.0",  # Prometheus metrics
 ]
 
 [project.optional-dependencies]
