@@ -1,121 +1,262 @@
-# Stock Picker
+# Stock Analysis Platform
 
-This application is designed to set up and run a stock picker that
-1. refreshes stock data;
-2. calculates derived metrics, such as moving averages and ranking;
-3. filters desired stocks based on certain criteria;
-4. displays filtered stocks into configured output.
+**Modern stock analysis and backtesting platform for Chinese markets**
 
-These tasks are run based on .env file and command line options.
+[![CI Frontend](https://github.com/monkeyboiii/stock-picker/workflows/Frontend%20CI/badge.svg)](https://github.com/monkeyboiii/stock-picker/actions)
+[![CI Backend](https://github.com/monkeyboiii/stock-picker/workflows/Backend%20CI/badge.svg)](https://github.com/monkeyboiii/stock-picker/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## State of Database
+---
 
-It's recommended to use ***PostgreSQL*** version 16 or higher. The database can be in one of the several states below.
+## 🚀 Project Status
 
-1. Not or partially initialized.
-2. Intialized with basic market info in the `market`, `stock`, `collection` table.
-3. Partially filled `stock_daily` and `collection_daily` tables.
-4. Up-to-date (trade_day) `stock_daily` and `collection_daily` tables, but derived metrics are not or partially calculated.
-5. Up-to-date (trade_day) `stock_daily` and `collection_daily` tables, and up-to-date derived metrics.
+**Current Phase**: Phase 1 - Monorepo Setup ✅
 
-In state 5, the database is ready to run daily stock picking automation.
+This project is being migrated to a modern monorepo architecture. See the [Migration Plan](docs/MONOREPO_MIGRATION_PLAN.md) for details.
 
-## Usage
+---
 
-Since the application is designed to be run from different states of the database, it
-needs to be run in a specific order using different subcommands to ensure that the data is
-up-to-date and correct.
+## 📋 Overview
 
-### Preparation
+A comprehensive platform for stock analysis and backtesting, featuring:
 
-#### Dependencies
+- **Real-time market data** from Chinese stock exchanges (Shanghai, Shenzhen, Beijing, Hong Kong)
+- **Technical indicators** (MA, RSI, MACD, Bollinger Bands, etc.)
+- **Stock filtering** based on multiple criteria
+- **Backtesting engine** with strategy DSL
+- **Risk analytics** (VaR, Sharpe ratio, Monte Carlo simulations)
+- **Web & mobile apps** for visualization and management
 
-Install [uv](https://docs.astral.sh/uv/) if not already installed:
+---
 
-```sh
-curl -LsSf https://astral.sh/uv/install.sh | sh
+## 🏗️ Architecture
+
+### Current Status (Monorepo Phase 1 Complete)
+
+The monorepo structure is now set up with:
+- ✅ PNPM workspace configuration
+- ✅ Turborepo for build orchestration
+- ✅ Shared TypeScript configs
+- ✅ ESLint & Prettier configs
+- ✅ Makefile with common commands
+- ✅ GitHub Actions CI/CD workflows
+- ✅ Developer setup guide
+
+### Planned Services (Phases 2-10)
+
+```
+┌─────────────────────────────────────────────┐
+│  Frontend                                   │
+│  • Web (Next.js)                           │
+│  • Mobile (React Native)                   │
+│  • Desktop (Electron)                      │
+└─────────────────────────────────────────────┘
+                  │
+┌─────────────────┼─────────────────────────┐
+│                 │                         │
+│  Trading API  Backtest API   Auth API    │
+│  (FastAPI)    (FastAPI)      (FastAPI)   │
+│                 │                         │
+│        Calculation API (Python/Rust)     │
+└─────────────────────────────────────────────┘
+                  │
+┌─────────────────┼─────────────────────────┐
+│  PostgreSQL   QuestDB        Redis        │
+└─────────────────────────────────────────────┘
 ```
 
-Sync all dependencies (production + dev):
+---
 
-```sh
-uv sync
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Backend APIs** | Python 3.13 + FastAPI |
+| **Calculations** | Python (pandas/numpy) → Rust (Polars) |
+| **Databases** | PostgreSQL 16, QuestDB, Redis 7 |
+| **Web Frontend** | Next.js 14 + React 18 + TypeScript |
+| **Mobile** | React Native + Expo |
+| **Monorepo** | PNPM + Turborepo |
+| **DevOps** | Docker, Kubernetes, GitHub Actions |
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 20+ and pnpm 8+
+- Python 3.13+ and uv
+- Docker and Docker Compose
+- PostgreSQL 16+
+
+### Installation
+
+```bash
+# Clone repository
+git clone https://github.com/monkeyboiii/stock-picker.git
+cd stock-picker
+
+# Install all dependencies
+make install
+
+# Set up environment
+cp example.env .env
+# Edit .env with your configuration
 ```
 
-Or sync production dependencies only:
+### Development
 
-```sh
-uv sync --no-dev
+```bash
+# Start all services (Docker Compose)
+make dev
+
+# Or start specific services
+make dev-backend    # Databases + backend APIs
+make dev-frontend   # Web and mobile apps
+
+# Run tests
+make test
+
+# Lint and format
+make lint
+make format
 ```
 
-#### Environment
+### Current Stock Picker (Legacy CLI)
 
-* ***PostgreSQL*** database (version 16+)
-* `.env` file (see `example.env`)
-* Google `credentials.json` for result upload
+The original stock-picker CLI is still available:
 
-### Execution
+```bash
+# Install Python dependencies
+cd app && uv sync
 
-After syncing dependencies, you can run the application using:
-
-```sh
-# Using uv run (recommended - no activation needed)
-uv run stock-picker [-h|--help]
-
-# Or activate the virtual environment
-source .venv/bin/activate  # On Unix
-# .venv\Scripts\activate   # On Windows
-stock-picker [-h|--help]
-
-# Or run directly with Python
-python app/main.py [-h|--help]
-```
-
-#### Init
-
-This corresponds to state 1 → state 2 transition.
-
-```sh
+# Initialize database
 uv run stock-picker init -r -lll
-```
 
-#### Run
-
-This command can be run at state 2/3/4, which will push the state to 5.
-And once at state 5, you can schedule to run this command on a daily basis.
-
-```sh
+# Run daily stock picking
 uv run stock-picker run
+
+# For detailed usage, see CLAUDE.md
 ```
 
-If you do not want to filter just yet, this command corresponds to state 2 → state 3/4 transition.
-Since natural days go by and trade data may become outdated on a daily basis, this corresponds to the everyday state update from 5 → 3 → 4.
+---
 
-```sh
-uv run stock-picker run -t ingest
+## 📚 Documentation
+
+- **[Migration Plan](docs/MONOREPO_MIGRATION_PLAN.md)** - Comprehensive monorepo migration guide
+- **[Developer Guide](DEVELOPER_GUIDE.md)** - Setup and development workflow
+- **[CLAUDE.md](CLAUDE.md)** - AI assistant guide (current stock-picker)
+- **[API Documentation](docs/api/)** - REST API specs (coming in Phase 2)
+- **[Architecture](docs/architecture/)** - System design and ADRs
+
+---
+
+## 📂 Repository Structure
+
+```
+stock-analysis-platform/
+├── services/        # Python backend services (FastAPI)
+│   ├── trading-api/        # Phase 2: Stock data & filtering
+│   ├── backtest-api/       # Phase 2: Backtesting engine
+│   ├── calculation-api/    # Phase 4: Indicators & risk
+│   ├── auth-api/          # Phase 3: Authentication
+│   └── notification-api/  # Phase 3: Notifications
+├── apps/           # Frontend applications
+│   ├── web/               # Phase 7: Next.js web app
+│   ├── mobile/            # Phase 8: React Native mobile
+│   └── desktop/           # Optional: Electron desktop
+├── packages/       # Shared TypeScript packages
+│   ├── api/               # Phase 6: Type-safe API clients
+│   ├── auth/              # Phase 6: Auth utilities
+│   ├── ui/                # Phase 6: UI components
+│   └── charts/            # Phase 6: Chart components
+├── infrastructure/ # Docker, K8s, Terraform
+├── app/           # Legacy stock-picker code (will be migrated)
+└── docs/          # Documentation
 ```
 
-This command changes state from 4 → 5:
+---
 
-```sh
-uv run stock-picker run -t update
+## 🎯 Roadmap
+
+### Phase 1: Monorepo Setup ✅ (Week 1-2)
+- [x] PNPM workspace + Turborepo
+- [x] TypeScript configs
+- [x] ESLint & Prettier
+- [x] CI/CD workflows
+- [x] Developer guide
+
+### Phase 2: Backend Services (Week 3-4)
+- [ ] Extract Trading API
+- [ ] Extract Backtest API
+- [ ] OpenAPI specs
+
+### Phase 3: Auth & Notifications (Week 5)
+- [ ] Auth API (JWT, OAuth2)
+- [ ] Notification API
+
+### Phase 4: Calculation API (Week 6)
+- [ ] Python calculation service
+- [ ] REST API endpoints
+
+### Phase 5-10: See [Migration Plan](docs/MONOREPO_MIGRATION_PLAN.md)
+
+---
+
+## 🧪 Testing
+
+```bash
+# Run all tests
+make test
+
+# Python tests
+make test-python
+
+# Frontend tests
+make test-frontend
+
+# E2E tests
+make test-e2e
+
+# With coverage
+pnpm turbo test -- --coverage
 ```
 
-#### Reset
+---
 
-This corresponds to state 2/3/4/5 → state 1/2 transition.
+## 🤝 Contributing
 
-```sh
-uv run stock-picker reset
-```
+1. Read the [Developer Guide](DEVELOPER_GUIDE.md)
+2. Check [open issues](https://github.com/monkeyboiii/stock-picker/issues)
+3. Create a feature branch (`feature/my-feature`)
+4. Make your changes with tests
+5. Run `make lint` and `make test`
+6. Submit a pull request
 
+---
 
-## TODOs
+## 📄 License
 
-- [x] redesign FeedDaily
-- [] backtests
-- [] get state of database
-- [] later insert of ma250 from materialized view
-- [] google sheet update
-- [] real time data from 2:30 to 3:00 (akshare/openD)
-- [] async engine
+[MIT License](LICENSE)
+
+---
+
+## 🙏 Acknowledgments
+
+- **AKShare** - Chinese stock market data
+- **FastAPI** - Modern Python web framework
+- **Next.js** - React framework
+- **Turborepo** - High-performance build system
+
+---
+
+## 📞 Support
+
+- **Issues**: https://github.com/monkeyboiii/stock-picker/issues
+- **Discussions**: https://github.com/monkeyboiii/stock-picker/discussions
+- **Documentation**: See `docs/` directory
+
+---
+
+**Built with ❤️ for stock traders and developers**

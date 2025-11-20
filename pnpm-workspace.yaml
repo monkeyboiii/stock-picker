@@ -1,0 +1,14 @@
+# PNPM Workspace Configuration
+# Defines which directories are part of the workspace
+
+packages:
+  # Frontend applications
+  - 'apps/*'
+
+  # Shared TypeScript packages
+  - 'packages/*'
+
+  # Exclude node_modules and build artifacts
+  - '!**/node_modules/**'
+  - '!**/dist/**'
+  - '!**/.next/**'

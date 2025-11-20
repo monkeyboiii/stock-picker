@@ -1,0 +1,154 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database (shared by trading-api, backtest-api, auth-api)
+  postgres:
+    image: postgres:16-alpine
+    container_name: stock-picker-postgres
+    environment:
+      POSTGRES_USER: stockpicker
+      POSTGRES_PASSWORD: stockpicker_dev
+      POSTGRES_DB: stock_picker
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stockpicker"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - stock-picker-network
+
+  # Redis for caching and session storage
+  redis:
+    image: redis:7-alpine
+    container_name: stock-picker-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - stock-picker-network
+
+  # Trading API - Stock data ingestion and filtering
+  trading-api:
+    build:
+      context: ../../services/trading-api
+      dockerfile: Dockerfile
+    container_name: stock-picker-trading-api
+    environment:
+      POSTGRES_USERNAME: stockpicker
+      POSTGRES_PASSWORD: stockpicker_dev
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DATABASE: stock_picker
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ../../services/trading-api/app:/app/app  # Hot reload
+    networks:
+      - stock-picker-network
+
+  # Backtest API - Strategy backtesting
+  backtest-api:
+    build:
+      context: ../../services/backtest-api
+      dockerfile: Dockerfile
+    container_name: stock-picker-backtest-api
+    environment:
+      POSTGRES_USERNAME: stockpicker
+      POSTGRES_PASSWORD: stockpicker_dev
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DATABASE: stock_picker
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ../../services/backtest-api/app:/app/app  # Hot reload
+    networks:
+      - stock-picker-network
+
+  # Auth API - Authentication and authorization
+  auth-api:
+    build:
+      context: ../../services/auth-api
+      dockerfile: Dockerfile
+    container_name: stock-picker-auth-api
+    environment:
+      DATABASE_URL: postgresql://stockpicker:stockpicker_dev@postgres:5432/auth_db
+      SECRET_KEY: dev-secret-key-change-in-production
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      REFRESH_TOKEN_EXPIRE_DAYS: 7
+    ports:
+      - "8003:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../../services/auth-api/app:/app/app  # Hot reload
+    networks:
+      - stock-picker-network
+
+  # Notification API - Email, SMS, push notifications
+  notification-api:
+    build:
+      context: ../../services/notification-api
+      dockerfile: Dockerfile
+    container_name: stock-picker-notification-api
+    environment:
+      # Provider configuration (optional - stubs work without these)
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-noreply@stockpicker.com}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-+1234567890}
+    ports:
+      - "8004:8004"
+    volumes:
+      - ../../services/notification-api/app:/app/app  # Hot reload
+    networks:
+      - stock-picker-network
+
+  # Calculation API - Technical indicators, risk analytics, portfolio optimization
+  calculation-api:
+    build:
+      context: ../../services/calculation-api
+      dockerfile: Dockerfile
+    container_name: stock-picker-calculation-api
+    environment:
+      # Redis configuration (optional - for future caching)
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      LOG_LEVEL: INFO
+    ports:
+      - "8005:8005"
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../../services/calculation-api/app:/app/app  # Hot reload
+    networks:
+      - stock-picker-network
+
+networks:
+  stock-picker-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

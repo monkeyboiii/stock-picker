@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./base.json",
+  "compilerOptions": {
+    // Node.js-specific
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "lib": ["ES2022"],
+
+    // For Node.js runtime
+    "target": "ES2022",
+    "types": ["node"],
+
+    // Emit to dist/
+    "outDir": "dist",
+    "rootDir": "src",
+
+    // No JSX for Node.js
+    "jsx": "none"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.test.ts"]
+}
