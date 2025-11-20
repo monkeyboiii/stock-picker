@@ -13,6 +13,12 @@ from app.constant.collection import CollectionType
 from app.db.models import Collection, FeedDaily, Market, MetadataBase, Stock, StockDaily
 
 
+# Configure anyio to only use asyncio backend (not trio)
+@pytest.fixture(scope="session")
+def anyio_backend():
+    return "asyncio"
+
+
 # --- Mock Engine and Session ---
 
 class MockDialect:

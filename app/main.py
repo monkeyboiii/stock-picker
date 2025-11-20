@@ -29,7 +29,12 @@ from datetime import date, datetime, time
 from dotenv import load_dotenv
 from loguru import logger
 
+from decimal import Decimal
+
+from app.backtest.engine import BacktestEngine
 from app.backtest.feed import refresh_feed_daily_table
+from app.backtest.signals import StrategyBuilder
+from app.backtest.strategy import get_or_create_tail_scraper_strategy
 from app.constant.exchange import MARKET_SUPPORTED
 from app.constant.schedule import previous_trade_day
 from app.constant.version import VERSION
@@ -106,6 +111,21 @@ def build_parser():
     subparser_reset.add_argument('-i', '--init', action=argparse.BooleanOptionalAction, default=True, help='Init after purge')
     subparser_reset.add_argument('-t', '--table',  help='Drop and create one table')
     subparser_reset.add_argument('-y', '--yes', action='store_true', default=False, help='Say yes to reset')
+
+    #
+    # backtest
+    subparser_backtest = subparsers.add_parser('backtest',
+                                               help='Run backtests on historical data'
+    )
+    subparser_backtest.add_argument('--start', required=True, help='Start date (YYYY-MM-DD)')
+    subparser_backtest.add_argument('--end', required=True, help='End date (YYYY-MM-DD)')
+    subparser_backtest.add_argument('--capital', type=float, default=1000000, help='Initial capital (default: 1,000,000)')
+    subparser_backtest.add_argument('--max-positions', type=int, default=20, help='Maximum concurrent positions (default: 20)')
+    subparser_backtest.add_argument('--take-profit', type=float, default=10.0, help='Take profit percentage (default: 10.0)')
+    subparser_backtest.add_argument('--stop-loss', type=float, default=-5.0, help='Stop loss percentage (default: -5.0)')
+    subparser_backtest.add_argument('--max-hold-days', type=int, default=30, help='Maximum holding days (default: 30)')
+    subparser_backtest.add_argument('--save', action='store_true', default=False, help='Save results to database')
+    subparser_backtest.add_argument('--strategy', default='tail_scraper', help='Strategy name (default: tail_scraper)')
 
     return parser
 
@@ -320,6 +340,62 @@ def main():
         case 'reset':
             raise Exception("Not implemented yet!")
 
+        ################################################################################
+        case 'backtest':
+            engine = engine_from_env()
+
+            # Parse arguments
+            start_date = date.fromisoformat(args.start)
+            end_date = date.fromisoformat(args.end)
+            initial_capital = Decimal(str(args.capital))
+            max_positions = args.max_positions
+
+            logger.info(
+                f"Backtest configuration:\n"
+                f"  Period: {start_date} to {end_date}\n"
+                f"  Initial capital: ¥{initial_capital:,.2f}\n"
+                f"  Max positions: {max_positions}\n"
+                f"  Take profit: {args.take_profit}%\n"
+                f"  Stop loss: {args.stop_loss}%\n"
+                f"  Max hold days: {args.max_hold_days}"
+            )
+
+            # Build strategy definition
+            if args.strategy == 'tail_scraper':
+                strategy_definition = StrategyBuilder.tail_scraper_strategy(
+                    take_profit_pct=args.take_profit,
+                    stop_loss_pct=args.stop_loss,
+                    max_holding_days=args.max_hold_days,
+                )
+            else:
+                logger.error(f"Unknown strategy: {args.strategy}")
+                sys.exit(1)
+
+            # Create backtest engine
+            backtest_engine = BacktestEngine(
+                strategy_definition=strategy_definition,
+                start_date=start_date,
+                end_date=end_date,
+                initial_capital=initial_capital,
+                max_positions=max_positions,
+            )
+
+            # Run backtest
+            logger.info("Starting backtest execution...")
+            result = backtest_engine.run(engine)
+
+            # Print results
+            logger.success("Backtest completed!")
+            print("\n" + "="*60)
+            print(result)
+            print("="*60)
+
+            # Save to database if requested
+            if args.save:
+                logger.info("Saving results to database...")
+                strategy_id = get_or_create_tail_scraper_strategy(engine)
+                run_id = backtest_engine.save_to_database(engine, strategy_id, result)
+                logger.success(f"Results saved with run_id: {run_id}")
 
         case _:
             assert False, 'should not reach'

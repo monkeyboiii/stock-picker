@@ -1,0 +1,84 @@
+strategy:
+  name: Aggressive Momentum
+  version: 1.0.0
+  author: example
+  description: |
+    Aggressive momentum strategy targeting high volume breakouts
+    with larger position sizes and tighter stops.
+
+  parameters:
+    # More aggressive volume requirements
+    volume_ratio_min: 1.5
+    turnover_rate_min: 8.0
+
+    # Wider market cap range
+    cap_min: 100000000      # 10M CNY
+    cap_max: 50000000000    # 5B CNY
+
+    # Moving average
+    ma_period: 250
+
+    # Aggressive exit conditions
+    take_profit_pct: 15.0
+    stop_loss_pct: -3.0
+    max_hold_days: 20
+
+  entry_conditions:
+    operator: AND
+    conditions:
+      # Higher volume requirement
+      - type: indicator
+        name: quantity_relative_ratio
+        comparison: ">="
+        value: "{{volume_ratio_min}}"
+
+      # Higher turnover requirement
+      - type: indicator
+        name: turnover_rate
+        comparison: ">"
+        value: "{{turnover_rate_min}}"
+
+      # Wider cap range
+      - type: market_cap
+        field: circulation_capital
+        comparison: between
+        value: ["{{cap_min}}", "{{cap_max}}"]
+
+      # Standard risk filters
+      - type: risk_filter
+        exclude: ["ST", "*"]
+
+      # MA250 filter
+      - type: technical
+        indicator: ma
+        period: "{{ma_period}}"
+        comparison: ">"
+        target: low
+
+      # Positive day
+      - type: price_direction
+        comparison: "close > open"
+
+  exit_conditions:
+    operator: OR
+    conditions:
+      - type: take_profit
+        method: percentage
+        value: "{{take_profit_pct}}"
+
+      - type: stop_loss
+        method: percentage
+        value: "{{stop_loss_pct}}"
+
+      - type: time_based
+        max_holding_days: "{{max_hold_days}}"
+
+  position_sizing:
+    method: equal_weight
+    max_positions: 15  # Fewer, larger positions
+    capital_per_position: "1/max_positions"
+
+  risk_management:
+    max_portfolio_drawdown: 15.0
+    max_position_size: 15.0  # Larger individual positions
+    stop_trading_on_drawdown: true
