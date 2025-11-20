@@ -9,6 +9,8 @@ FastAPI service for:
 - User management
 """
 
+import os
+import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Optional
@@ -20,6 +22,7 @@ from loguru import logger
 from pydantic import BaseModel
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.models import Base, Session as DBSession, User
 from app.schemas.auth import (
@@ -60,7 +63,16 @@ if not DATABASE_URL:
 
     DATABASE_URL = f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}"
 
-engine = create_engine(DATABASE_URL, echo=False)
+# Database engine with connection pooling for production reliability
+engine = create_engine(
+    DATABASE_URL,
+    echo=False,
+    pool_size=10,           # Base pool size - connections kept alive
+    max_overflow=20,        # Extra connections under load (total = 30)
+    pool_timeout=30,        # Timeout waiting for connection (seconds)
+    pool_recycle=3600,      # Recycle connections after 1 hour
+    pool_pre_ping=True,     # Verify connections before use (detect stale connections)
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # HTTP Bearer security scheme
@@ -76,12 +88,28 @@ class HealthResponse(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifecycle handler for FastAPI app"""
+    """
+    Lifecycle handler for FastAPI app with graceful shutdown.
+
+    Startup: Initialize database tables
+    Shutdown: Dispose database connections gracefully
+    """
     logger.info("Starting Auth API...")
     # Create tables if they don't exist
     Base.metadata.create_all(bind=engine)
-    yield
-    logger.info("Shutting down Auth API...")
+    logger.info("Auth API startup complete")
+
+    yield  # Application runs here
+
+    # Graceful shutdown
+    logger.info("Shutting down Auth API gracefully...")
+    try:
+        # Dispose of database engine and close all connections
+        engine.dispose()
+        logger.info("Database connections closed")
+    except Exception as e:
+        logger.error(f"Error during shutdown: {e}")
+    logger.info("Auth API shutdown complete")
 
 
 # FastAPI app
@@ -107,9 +135,33 @@ app.add_middleware(
     allow_origins=allowed_origins,  # Whitelist only trusted origins
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],  # Explicit methods only
-    allow_headers=["Content-Type", "Authorization"],  # Explicit headers only
+    allow_headers=["Content-Type", "Authorization", "X-Request-ID"],  # Include Request ID
+    allow_exposed_headers=["X-Request-ID"],  # Expose to client
     max_age=600,  # Cache preflight requests for 10 minutes
 )
+
+
+# Request ID middleware for distributed tracing
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """Add or propagate X-Request-ID header for request tracing"""
+
+    async def dispatch(self, request: Request, call_next):
+        # Get existing request ID or generate new one
+        request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+
+        # Add request ID to request state for access in endpoints
+        request.state.request_id = request_id
+
+        # Process request
+        response = await call_next(request)
+
+        # Add request ID to response headers
+        response.headers["X-Request-ID"] = request_id
+
+        return response
+
+
+app.add_middleware(RequestIDMiddleware)
 
 # Cookie security configuration
 # SECURITY: Make cookie secure flag configurable for development vs production
