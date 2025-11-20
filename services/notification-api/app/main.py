@@ -253,4 +253,5 @@ async def list_templates():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8004)
+    # Bind to 0.0.0.0 for Docker container accessibility
+    uvicorn.run(app, host="0.0.0.0", port=8004)  # nosec B104

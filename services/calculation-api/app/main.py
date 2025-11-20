@@ -83,4 +83,5 @@ async def health():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8005, log_level="info")
+    # Bind to 0.0.0.0 for Docker container accessibility
+    uvicorn.run(app, host="0.0.0.0", port=8005, log_level="info")  # nosec B104

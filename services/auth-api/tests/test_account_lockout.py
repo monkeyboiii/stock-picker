@@ -9,6 +9,7 @@ Test Lead Requirements:
 """
 
 import os
+import secrets
 from datetime import datetime, timedelta
 from unittest.mock import Mock
 
@@ -19,7 +20,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 # Set required environment variables before importing app
-os.environ.setdefault("JWT_SECRET", "test-secret-12345")  # Short secret for testing
+# SECURITY: Generate random secret for each test run (never hardcode secrets)
+os.environ.setdefault("JWT_SECRET", secrets.token_urlsafe(32))  # Random secret per test run
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 
 from app.main import app
