@@ -23,9 +23,16 @@ from pydantic import BaseModel
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 from starlette.middleware.base import BaseHTTPMiddleware
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from app.models import Base, Session as DBSession, User
 from app.schemas.auth import (
@@ -66,16 +73,40 @@ if not DATABASE_URL:
 
     DATABASE_URL = f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}"
 
-# Database engine with connection pooling for production reliability
-engine = create_engine(
-    DATABASE_URL,
-    echo=False,
-    pool_size=10,           # Base pool size - connections kept alive
-    max_overflow=20,        # Extra connections under load (total = 30)
-    pool_timeout=30,        # Timeout waiting for connection (seconds)
-    pool_recycle=3600,      # Recycle connections after 1 hour
-    pool_pre_ping=True,     # Verify connections before use (detect stale connections)
+
+# Database engine creation with retry logic
+@retry(
+    retry=retry_if_exception_type((OperationalError, ConnectionError)),
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    reraise=True,
 )
+def create_db_engine(url: str):
+    """
+    Create database engine with retry logic for connection failures.
+
+    RESILIENCE: Retries up to 5 times with exponential backoff (1s, 2s, 4s, 8s, 10s)
+    Handles transient network issues and database startup delays.
+    """
+    logger.info("Creating database engine with connection pooling...")
+    engine = create_engine(
+        url,
+        echo=False,
+        pool_size=10,           # Base pool size - connections kept alive
+        max_overflow=20,        # Extra connections under load (total = 30)
+        pool_timeout=30,        # Timeout waiting for connection (seconds)
+        pool_recycle=3600,      # Recycle connections after 1 hour
+        pool_pre_ping=True,     # Verify connections before use (detect stale connections)
+    )
+    # Test connection immediately to trigger retry if database is unavailable
+    with engine.connect() as conn:
+        conn.execute(text("SELECT 1"))
+    logger.info("Database engine created successfully")
+    return engine
+
+
+# Database engine with connection pooling and retry logic for production reliability
+engine = create_db_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # HTTP Bearer security scheme

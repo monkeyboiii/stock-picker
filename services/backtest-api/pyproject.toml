@@ -27,6 +27,7 @@ dependencies = [
     # Utilities
     "loguru==0.7.3",
     "python-dotenv==1.0.1",
+    "tenacity==9.0.0",  # Retry logic with exponential backoff
 ]
 
 [project.optional-dependencies]
